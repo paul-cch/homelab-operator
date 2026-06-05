@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import re
 import json
+import re
 from dataclasses import dataclass
 from enum import Enum
 
@@ -61,6 +61,11 @@ CLOSING_REF_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#\d+
 BARE_CLOSING_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(?:\D|$)", re.I)
 PARTIAL_WORK_RE = re.compile(r"\b(first|remaining|partial|slice|part of|follow-up|coordinator|later|not close|refs?)\b", re.I)
 COMMAND_RE = re.compile(r"`[^`]+`|\b(?:python|pytest|ruff|mypy|git |bash |shellcheck |npm |pnpm |cargo |go test)\b")
+PRIVATE_PATTERNS = (
+    re.compile(r"\b(?:10|127|172\.(?:1[6-9]|2\d|3[0-1])|192\.168)\.\d{1,3}\.\d{1,3}\b"),
+    re.compile(r"(?i)\b(?:authorization|api[_-]?key|access[_-]?token|secret[_-]?key|password)\s*[:=]\s*['\"]?[^'\"\s]+"),
+    re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----"),
+)
 
 
 @dataclass(frozen=True)
@@ -79,6 +84,17 @@ class ReceiptResult:
     errors: tuple[str, ...]
     warnings: tuple[str, ...]
     fields: dict[str, str]
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
+
+
+@dataclass(frozen=True)
+class EstateResult:
+    errors: tuple[str, ...]
+    warnings: tuple[str, ...]
+    surfaces: tuple[str, ...]
 
     @property
     def ok(self) -> bool:
@@ -194,6 +210,54 @@ def evaluate_surface_claim(payload: str) -> ContractResult:
     if data.get("proof_kind") and data["proof_kind"] not in {kind.value for kind in ProofKind}:
         errors.append("Surface claim has unknown proof_kind")
 
+    return ContractResult(errors=tuple(errors), warnings=(), owned_paths=())
+
+
+def evaluate_estate(payload: str) -> EstateResult:
+    """Validate the simple YAML subset used by Homelab Operator examples."""
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    surfaces: list[str] = []
+    flow_refs: list[tuple[str, str]] = []
+    current_from: str | None = None
+
+    for raw in payload.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("- id:"):
+            surface_id = line.split(":", 1)[1].strip()
+            if surface_id:
+                surfaces.append(surface_id)
+            else:
+                errors.append("Estate surface has an empty id")
+            continue
+        if line.startswith("- from:"):
+            current_from = line.split(":", 1)[1].strip()
+            continue
+        if line.startswith("to:") and current_from is not None:
+            flow_refs.append((current_from, line.split(":", 1)[1].strip()))
+            current_from = None
+
+    if not surfaces:
+        errors.append("Estate must define at least one surface with `- id:`")
+
+    known_surfaces = set(surfaces)
+    for source, target in flow_refs:
+        if source not in known_surfaces:
+            errors.append(f"Estate flow references unknown source surface `{source}`")
+        if target not in known_surfaces:
+            errors.append(f"Estate flow references unknown target surface `{target}`")
+
+    if not flow_refs:
+        warnings.append("Estate defines no flows")
+
+    return EstateResult(errors=tuple(errors), warnings=tuple(warnings), surfaces=tuple(surfaces))
+
+
+def scan_privacy(text: str) -> ContractResult:
+    errors = [f"Privacy scan matched `{pattern.pattern}`" for pattern in PRIVATE_PATTERNS if pattern.search(text)]
     return ContractResult(errors=tuple(errors), warnings=(), owned_paths=())
 
 

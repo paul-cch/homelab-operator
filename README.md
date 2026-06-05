@@ -27,6 +27,8 @@ homelab-operator check-pr --body-file tests/fixtures/good_pr_body.md
 homelab-operator receipt-template --state MERGE_READY
 homelab-operator check-receipt --file tests/fixtures/good_receipt.md
 homelab-operator check-claim --json-file tests/fixtures/surface_claim.json
+homelab-operator check-estate --file examples/minimal-homelab/estate.yaml
+homelab-operator doctor --root .
 ```
 
 Expected result:
@@ -72,6 +74,9 @@ It also catches common unsafe patterns:
 | `homelab-operator receipt-template` | Print a lane receipt template for an exit state. |
 | `homelab-operator check-receipt` | Validate a Markdown lane receipt. |
 | `homelab-operator check-claim` | Validate a JSON surface claim. |
+| `homelab-operator check-estate` | Validate a simple example estate file. |
+| `homelab-operator check-privacy` | Scan text files for private operational material. |
+| `homelab-operator doctor` | Run the built-in project contract checks. |
 | `homelab-operator init` | Install templates into another repository. |
 
 ## Install into another repo
@@ -92,6 +97,7 @@ Existing files are skipped unless `--force` is passed.
 ## Documentation
 
 - [Proof ladder](docs/concepts/proof-ladder.md)
+- [Command reference](docs/commands.md)
 - [Claim boundaries](docs/concepts/claim-boundaries.md)
 - [Privacy model](docs/concepts/privacy.md)
 - [Source change workflow](docs/workflows/source-change.md)
@@ -109,11 +115,15 @@ history in examples.
 
 ## Status
 
-Released as `v0.1.0`. The first milestone includes:
+Released as `v1.0.0`. The stable command surface includes:
 
 - working PR contract checks
-- lane receipt templates
+- lane receipt templates and validators
+- JSON surface-claim checks
+- simple estate checks
+- privacy scanning
+- project doctor checks
 - JSON Schemas
-- fake example estates
+- synthetic example estates
 - GitHub Actions integration
 - docs for source-only, handoff, no-op, and blocked lanes

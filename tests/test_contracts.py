@@ -3,7 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from homelab_operator.cli import main
-from homelab_operator.contracts import evaluate_pr_body, evaluate_receipt, evaluate_surface_claim, receipt_template
+from homelab_operator.contracts import (
+    evaluate_estate,
+    evaluate_pr_body,
+    evaluate_receipt,
+    evaluate_surface_claim,
+    receipt_template,
+    scan_privacy,
+)
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -73,9 +80,49 @@ def test_surface_claim_passes() -> None:
     assert result.ok
 
 
+def test_estate_passes() -> None:
+    result = evaluate_estate(Path("examples/minimal-homelab/estate.yaml").read_text(encoding="utf-8"))
+
+    assert result.ok
+    assert set(result.surfaces) == {"source", "host", "runtime", "live-config"}
+
+
+def test_estate_rejects_unknown_flow_target() -> None:
+    result = evaluate_estate(
+        """name: bad
+surfaces:
+  - id: source
+    kind: repo
+flows:
+  - from: source
+    to: missing
+    proof_required: runtime_export_only
+"""
+    )
+
+    assert not result.ok
+    assert "Estate flow references unknown target surface `missing`" in result.errors
+
+
+def test_privacy_scan_rejects_private_ip() -> None:
+    result = scan_privacy("host: " + ".".join(["192", "168", "1", "20"]))
+
+    assert not result.ok
+
+
+def test_privacy_scan_accepts_policy_text() -> None:
+    result = scan_privacy("Do not publish secrets or private topology.")
+
+    assert result.ok
+
+
 def test_init_writes_templates(tmp_path: Path) -> None:
     assert main(["init", "--target", str(tmp_path)]) == 0
 
     assert (tmp_path / "AGENTS.md").exists()
     assert (tmp_path / ".github/pull_request_template.md").exists()
     assert (tmp_path / ".github/workflows/homelab-operator-contract.yml").exists()
+
+
+def test_doctor_passes_for_repo() -> None:
+    assert main(["doctor", "--root", "."]) == 0

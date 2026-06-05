@@ -3,11 +3,23 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import sys
 from pathlib import Path
 
-from .contracts import ExitState, evaluate_pr_body, evaluate_receipt, evaluate_surface_claim, receipt_template
+from .contracts import (
+    ExitState,
+    evaluate_estate,
+    evaluate_pr_body,
+    evaluate_receipt,
+    evaluate_surface_claim,
+    receipt_template,
+    scan_privacy,
+)
 from .scaffold import INIT_FILES
+
+
+SKIP_DIRS = {".git", ".venv", ".pytest_cache", ".ruff_cache", "build", "dist", "__pycache__"}
 
 
 def read_text(path: str | None) -> str:
@@ -57,6 +69,79 @@ def cmd_check_claim(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_check_estate(args: argparse.Namespace) -> int:
+    result = evaluate_estate(read_text(args.file))
+    for warning in result.warnings:
+        print(f"WARNING {warning}", file=sys.stderr)
+    if result.ok:
+        print("ESTATE_CONTRACT_OK")
+        return 0
+    for error in result.errors:
+        print(f"ERROR {error}", file=sys.stderr)
+    return 1
+
+
+def iter_text_files(root: Path) -> list[Path]:
+    paths: list[Path] = []
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        if any(part in SKIP_DIRS for part in path.parts):
+            continue
+        paths.append(path)
+    return sorted(paths)
+
+
+def cmd_check_privacy(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    failures: list[str] = []
+    for path in iter_text_files(root):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        result = scan_privacy(text)
+        failures.extend(f"{path}: {error}" for error in result.errors)
+    if failures:
+        for failure in failures:
+            print(f"ERROR {failure}", file=sys.stderr)
+        return 1
+    print("PRIVACY_SCAN_OK")
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    root = Path(args.root)
+    checks = [
+        ("PR", root / "tests/fixtures/good_pr_body.md", evaluate_pr_body, "PR_CONTRACT_OK"),
+        ("receipt", root / "tests/fixtures/good_receipt.md", evaluate_receipt, "RECEIPT_CONTRACT_OK"),
+        ("claim", root / "tests/fixtures/surface_claim.json", evaluate_surface_claim, "SURFACE_CLAIM_OK"),
+        ("estate", root / "examples/minimal-homelab/estate.yaml", evaluate_estate, "ESTATE_CONTRACT_OK"),
+    ]
+    errors: list[str] = []
+    for label, path, evaluator, ok_message in checks:
+        if not path.exists():
+            errors.append(f"{label} fixture missing: {path}")
+            continue
+        result = evaluator(path.read_text(encoding="utf-8"))
+        if result.ok:
+            print(ok_message)
+        else:
+            errors.extend(f"{path}: {error}" for error in result.errors)
+
+    privacy_args = argparse.Namespace(root=str(root))
+    privacy_code = cmd_check_privacy(privacy_args)
+    if privacy_code:
+        errors.append("privacy scan failed")
+
+    if errors:
+        for error in errors:
+            print(f"ERROR {error}", file=sys.stderr)
+        return 1
+    print("HOMELAB_OPERATOR_DOCTOR_OK")
+    return 0
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     target = Path(args.target)
     written: list[str] = []
@@ -82,6 +167,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="homelab-operator")
+    parser.add_argument("--version", action="version", version=importlib.metadata.version("homelab-operator"))
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     check_pr = subparsers.add_parser("check-pr", help="Validate an agent-authored PR body")
@@ -100,6 +186,18 @@ def build_parser() -> argparse.ArgumentParser:
     check_claim = subparsers.add_parser("check-claim", help="Validate a JSON surface claim")
     check_claim.add_argument("--json-file", required=True, help="JSON surface claim file.")
     check_claim.set_defaults(func=cmd_check_claim)
+
+    check_estate = subparsers.add_parser("check-estate", help="Validate a simple estate YAML file")
+    check_estate.add_argument("--file", required=True, help="Estate YAML file.")
+    check_estate.set_defaults(func=cmd_check_estate)
+
+    check_privacy = subparsers.add_parser("check-privacy", help="Scan text files for private operational material")
+    check_privacy.add_argument("--root", default=".", help="Repository root to scan.")
+    check_privacy.set_defaults(func=cmd_check_privacy)
+
+    doctor = subparsers.add_parser("doctor", help="Run the built-in project contract checks")
+    doctor.add_argument("--root", default=".", help="Repository root to check.")
+    doctor.set_defaults(func=cmd_doctor)
 
     init = subparsers.add_parser("init", help="Install Homelab Operator templates into a repo")
     init.add_argument("--target", default=".", help="Target repository root.")

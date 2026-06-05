@@ -5,6 +5,7 @@ workflow docs as operational templates.
 
 ## Concepts
 
+- [Command reference](commands.md)
 - [Proof ladder](concepts/proof-ladder.md)
 - [Claim boundaries](concepts/claim-boundaries.md)
 - [Privacy model](concepts/privacy.md)

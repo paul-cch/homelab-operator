@@ -67,6 +67,7 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: printf '%s' "$PR_BODY" > /tmp/pr-body.md
       - run: homelab-operator check-pr --body-file /tmp/pr-body.md
+      - run: homelab-operator check-privacy --root .
 """,
     "docs/homelab-operator/lane-receipt.md": """## Agent Lane Receipt
 

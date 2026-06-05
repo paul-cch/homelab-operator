@@ -17,7 +17,7 @@ Run:
 ```bash
 python -m pip install -e ".[dev]"
 python -m pytest
-homelab-operator check-pr --body-file tests/fixtures/good_pr_body.md
+homelab-operator doctor --root .
 ```
 
 Use `repo_only` proof for source and docs changes unless a separate public
