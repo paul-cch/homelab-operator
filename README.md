@@ -109,7 +109,7 @@ history in examples.
 
 ## Status
 
-Early v0.1 candidate. The first milestone includes:
+Released as `v0.1.0`. The first milestone includes:
 
 - working PR contract checks
 - lane receipt templates

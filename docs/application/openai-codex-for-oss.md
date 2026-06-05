@@ -10,6 +10,19 @@ additional context under 500 characters.
 
 `https://github.com/paul-cch/homelab-operator`
 
+## Release URL
+
+`https://github.com/paul-cch/homelab-operator/releases/tag/v0.1.0`
+
+## Current evidence
+
+- Public repository: yes
+- License: Apache-2.0
+- Release: `v0.1.0`
+- CI: passing on `main`
+- Package artifacts: source distribution and wheel attached to the release
+- Local validation: tests, ruff, contract CLI checks, build, twine check, and privacy scan
+
 ## Role
 
 Primary maintainer.
