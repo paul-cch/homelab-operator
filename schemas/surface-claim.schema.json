@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Homelab Operator Surface Claim",
+  "type": "object",
+  "required": ["surface", "proof_kind", "claim_proven", "claim_not_proven"],
+  "properties": {
+    "surface": {
+      "enum": ["repo", "github", "host_checkout", "runtime_export", "live_config", "external_service"]
+    },
+    "proof_kind": {
+      "enum": [
+        "repo_only",
+        "github_coordination",
+        "host_checkout_only",
+        "runtime_export_only",
+        "live_config_only",
+        "external_service_only",
+        "end_to_end",
+        "handoff",
+        "blocked"
+      ]
+    },
+    "claim_proven": { "type": "string", "minLength": 1 },
+    "claim_not_proven": { "type": "string", "minLength": 1 },
+    "next_safe_action": { "type": "string" }
+  },
+  "additionalProperties": true
+}

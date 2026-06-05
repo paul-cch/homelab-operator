@@ -1,0 +1,7 @@
+{
+  "surface": "repo",
+  "proof_kind": "repo_only",
+  "claim_proven": "local tests pass",
+  "claim_not_proven": "no live runtime checked",
+  "next_safe_action": "open pull request"
+}

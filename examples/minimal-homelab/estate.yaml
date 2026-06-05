@@ -1,0 +1,21 @@
+name: minimal-homelab
+surfaces:
+  - id: source
+    kind: repo
+    authority: github-main
+  - id: host
+    kind: host_checkout
+    authority: operator-controlled-host
+  - id: runtime
+    kind: runtime_export
+    authority: service-runtime
+  - id: live-config
+    kind: live_config
+    authority: runtime-local-config
+flows:
+  - from: source
+    to: host
+    proof_required: host_checkout_only
+  - from: host
+    to: runtime
+    proof_required: runtime_export_only

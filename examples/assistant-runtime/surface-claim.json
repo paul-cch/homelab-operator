@@ -1,0 +1,7 @@
+{
+  "surface": "runtime_export",
+  "proof_kind": "handoff",
+  "claim_proven": "source package tests passed in the repository",
+  "claim_not_proven": "the assistant runtime export has not been refreshed",
+  "next_safe_action": "run the runtime export gate on the target runtime"
+}

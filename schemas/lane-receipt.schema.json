@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Homelab Operator Lane Receipt",
+  "type": "object",
+  "required": [
+    "exit_state",
+    "owned_paths",
+    "surface_classification",
+    "proof_kind",
+    "claim_proven",
+    "claim_not_proven",
+    "checks_or_commands_run",
+    "next_safe_command"
+  ],
+  "properties": {
+    "exit_state": {
+      "enum": ["MERGE_READY", "BLOCKED_WITH_EVIDENCE", "CLEAN_NO_OP", "HOST_RUNTIME_HANDOFF"]
+    },
+    "issue": { "type": "string" },
+    "branch_or_worktree": { "type": "string" },
+    "pr": { "type": "string" },
+    "owned_paths": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "surface_classification": { "type": "string", "minLength": 1 },
+    "proof_kind": {
+      "enum": [
+        "repo_only",
+        "github_coordination",
+        "host_checkout_only",
+        "runtime_export_only",
+        "live_config_only",
+        "external_service_only",
+        "end_to_end",
+        "handoff",
+        "blocked"
+      ]
+    },
+    "claim_proven": { "type": "string", "minLength": 1 },
+    "claim_not_proven": { "type": "string", "minLength": 1 },
+    "repo_gate": { "type": "string" },
+    "host_runtime_handoff_needed": { "type": "string" },
+    "checks_or_commands_run": { "type": "string", "minLength": 1 },
+    "blockers": { "type": "string" },
+    "next_safe_command": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": true
+}

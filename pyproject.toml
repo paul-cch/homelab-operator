@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "homelab-operator"
+version = "0.1.0"
+description = "Contracts and templates for AI-assisted infrastructure maintenance."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [
+  { name = "Paul Couach" }
+]
+keywords = [
+  "agents",
+  "codex",
+  "homelab",
+  "infrastructure",
+  "maintenance",
+  "operations",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Software Development :: Quality Assurance",
+  "Topic :: System :: Systems Administration",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+  "build>=1",
+  "pytest>=8",
+  "ruff>=0.8",
+  "twine>=6",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[project.scripts]
+homelab-operator = "homelab_operator.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/homelab_operator"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

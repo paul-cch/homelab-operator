@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Homelab Operator PR Contract",
+  "type": "object",
+  "required": ["summary", "linked_issue", "owned_paths", "validation", "claim_boundary"],
+  "properties": {
+    "summary": { "type": "string", "minLength": 1 },
+    "linked_issue": { "type": "string", "minLength": 1 },
+    "owned_paths": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "validation": { "type": "string", "minLength": 1 },
+    "claim_boundary": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}
