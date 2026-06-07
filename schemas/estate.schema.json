@@ -29,7 +29,19 @@
         "properties": {
           "from": { "type": "string", "minLength": 1 },
           "to": { "type": "string", "minLength": 1 },
-          "proof_required": { "type": "string", "minLength": 1 }
+          "proof_required": {
+            "enum": [
+              "repo_only",
+              "github_coordination",
+              "host_checkout_only",
+              "runtime_export_only",
+              "live_config_only",
+              "external_service_only",
+              "end_to_end",
+              "handoff",
+              "blocked"
+            ]
+          }
         },
         "additionalProperties": true
       }

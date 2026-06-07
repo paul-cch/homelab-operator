@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from homelab_operator.cli import main
 from homelab_operator.contracts import (
+    ProofKind,
+    RECEIPT_FIELDS,
+    SurfaceKind,
     evaluate_estate,
     evaluate_pr_body,
     evaluate_receipt,
@@ -14,6 +18,31 @@ from homelab_operator.contracts import (
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
+SCHEMAS = Path(__file__).parents[1] / "schemas"
+
+RECEIPT_SCHEMA_KEYS = {
+    "Exit state": "exit_state",
+    "Issue": "issue",
+    "Branch / worktree": "branch_or_worktree",
+    "PR": "pr",
+    "Owned paths": "owned_paths",
+    "Surface classification": "surface_classification",
+    "Proof kind": "proof_kind",
+    "Claim proven": "claim_proven",
+    "Claim not proven": "claim_not_proven",
+    "Repo gate": "repo_gate",
+    "Host/runtime handoff needed": "host_runtime_handoff_needed",
+    "Host gate needed": "host_gate_needed",
+    "Runtime gate needed": "runtime_gate_needed",
+    "Live config gate needed": "live_config_gate_needed",
+    "Checks or commands run": "checks_or_commands_run",
+    "Blockers": "blockers",
+    "Next safe command": "next_safe_command",
+}
+
+
+def load_schema(name: str) -> dict[str, object]:
+    return json.loads((SCHEMAS / name).read_text(encoding="utf-8"))
 
 
 def test_good_pr_body_passes() -> None:
@@ -74,10 +103,63 @@ def test_bad_receipt_fails_on_empty_claim() -> None:
     assert "Claim proven must not be empty" in result.errors
 
 
+def test_receipt_rejects_empty_gate_field() -> None:
+    receipt = (FIXTURES / "good_receipt.md").read_text(encoding="utf-8").replace(
+        "- Host gate needed: no", "- Host gate needed:"
+    )
+
+    result = evaluate_receipt(receipt)
+
+    assert not result.ok
+    assert "Host gate needed must not be empty" in result.errors
+
+
+def test_receipt_schema_requires_runtime_fields() -> None:
+    schema = load_schema("lane-receipt.schema.json")
+    expected = {RECEIPT_SCHEMA_KEYS[field] for field in RECEIPT_FIELDS}
+
+    assert set(schema["required"]) == expected
+
+
+def test_receipt_schema_includes_gate_properties() -> None:
+    properties = load_schema("lane-receipt.schema.json")["properties"]
+
+    for key in (
+        "host_runtime_handoff_needed",
+        "host_gate_needed",
+        "runtime_gate_needed",
+        "live_config_gate_needed",
+    ):
+        assert properties[key]["minLength"] == 1
+
+
 def test_surface_claim_passes() -> None:
     result = evaluate_surface_claim((FIXTURES / "surface_claim.json").read_text(encoding="utf-8"))
 
     assert result.ok
+
+
+def test_surface_claim_rejects_unknown_surface() -> None:
+    result = evaluate_surface_claim(
+        json.dumps(
+            {
+                "surface": "runtime",
+                "proof_kind": "runtime_export_only",
+                "claim_proven": "synthetic runtime export checked",
+                "claim_not_proven": "no live service checked",
+            }
+        )
+    )
+
+    assert not result.ok
+    assert "Surface claim has unknown surface" in result.errors
+
+
+def test_surface_claim_schema_enums_match_runtime() -> None:
+    properties = load_schema("surface-claim.schema.json")["properties"]
+
+    assert properties["surface"]["enum"] == [kind.value for kind in SurfaceKind]
+    assert properties["proof_kind"]["enum"] == [kind.value for kind in ProofKind]
 
 
 def test_estate_passes() -> None:
@@ -102,6 +184,51 @@ flows:
 
     assert not result.ok
     assert "Estate flow references unknown target surface `missing`" in result.errors
+
+
+def test_estate_rejects_missing_name_and_flows_section() -> None:
+    result = evaluate_estate(
+        """surfaces:
+  - id: source
+    kind: repo
+    authority: synthetic-source
+"""
+    )
+
+    assert not result.ok
+    assert "Estate must define non-empty name" in result.errors
+    assert "Estate must define flows section" in result.errors
+
+
+def test_estate_rejects_unknown_surface_kind_and_proof_required() -> None:
+    result = evaluate_estate(
+        """name: bad
+surfaces:
+  - id: source
+    kind: runtime
+    authority: synthetic-source
+  - id: runtime
+    kind: runtime_export
+    authority: synthetic-runtime
+flows:
+  - from: source
+    to: runtime
+    proof_required: runtime
+"""
+    )
+
+    assert not result.ok
+    assert "Estate surface `source` has unknown kind `runtime`" in result.errors
+    assert "Estate flow from `source` to `runtime` has unknown proof_required `runtime`" in result.errors
+
+
+def test_estate_schema_enums_match_runtime() -> None:
+    schema = load_schema("estate.schema.json")
+    surface_properties = schema["properties"]["surfaces"]["items"]["properties"]
+    flow_properties = schema["properties"]["flows"]["items"]["properties"]
+
+    assert surface_properties["kind"]["enum"] == [kind.value for kind in SurfaceKind]
+    assert flow_properties["proof_required"]["enum"] == [kind.value for kind in ProofKind]
 
 
 def test_privacy_scan_rejects_private_ip() -> None:
