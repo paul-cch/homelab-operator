@@ -27,6 +27,18 @@ class ProofKind(str, Enum):
     BLOCKED = "blocked"
 
 
+class SurfaceKind(str, Enum):
+    REPO = "repo"
+    GITHUB = "github"
+    HOST_CHECKOUT = "host_checkout"
+    RUNTIME_EXPORT = "runtime_export"
+    LIVE_CONFIG = "live_config"
+    EXTERNAL_SERVICE = "external_service"
+
+
+PROOF_KIND_VALUES = tuple(kind.value for kind in ProofKind)
+SURFACE_KIND_VALUES = tuple(kind.value for kind in SurfaceKind)
+
 RECEIPT_FIELDS = (
     "Exit state",
     "Issue",
@@ -44,6 +56,22 @@ RECEIPT_FIELDS = (
     "Live config gate needed",
     "Checks or commands run",
     "Blockers",
+    "Next safe command",
+)
+
+NON_EMPTY_RECEIPT_FIELDS = (
+    "Exit state",
+    "Owned paths",
+    "Surface classification",
+    "Proof kind",
+    "Claim proven",
+    "Claim not proven",
+    "Repo gate",
+    "Host/runtime handoff needed",
+    "Host gate needed",
+    "Runtime gate needed",
+    "Live config gate needed",
+    "Checks or commands run",
     "Next safe command",
 )
 
@@ -167,17 +195,17 @@ def evaluate_receipt(receipt: str) -> ReceiptResult:
     if missing:
         errors.append("Receipt is missing fields: " + ", ".join(missing))
 
+    for field in NON_EMPTY_RECEIPT_FIELDS:
+        if field in fields and not fields[field]:
+            errors.append(f"{field} must not be empty")
+
     exit_state = fields.get("Exit state", "")
     if exit_state and exit_state not in {state.value for state in ExitState}:
         errors.append("Exit state must be one of: " + ", ".join(state.value for state in ExitState))
 
     proof_kind = fields.get("Proof kind", "")
-    if proof_kind and proof_kind not in {kind.value for kind in ProofKind}:
-        errors.append("Proof kind must be one of: " + ", ".join(kind.value for kind in ProofKind))
-
-    for field in ("Claim proven", "Claim not proven", "Next safe command"):
-        if field in fields and not fields[field]:
-            errors.append(f"{field} must not be empty")
+    if proof_kind and proof_kind not in PROOF_KIND_VALUES:
+        errors.append("Proof kind must be one of: " + ", ".join(PROOF_KIND_VALUES))
 
     if fields.get("Exit state") == ExitState.MERGE_READY.value and fields.get("Blockers", "").lower() not in {"", "none", "n/a"}:
         warnings.append("MERGE_READY receipts should normally have no blockers")
@@ -194,20 +222,13 @@ def evaluate_surface_claim(payload: str) -> ContractResult:
     errors: list[str] = []
     required = ("surface", "proof_kind", "claim_proven", "claim_not_proven")
     for field in required:
-        if not data.get(field):
+        if not isinstance(data.get(field), str) or not data[field].strip():
             errors.append(f"Surface claim must include non-empty `{field}`")
 
-    if data.get("surface") and data["surface"] not in {
-        "repo",
-        "github",
-        "host_checkout",
-        "runtime_export",
-        "live_config",
-        "external_service",
-    }:
+    if data.get("surface") and data["surface"] not in SURFACE_KIND_VALUES:
         errors.append("Surface claim has unknown surface")
 
-    if data.get("proof_kind") and data["proof_kind"] not in {kind.value for kind in ProofKind}:
+    if data.get("proof_kind") and data["proof_kind"] not in PROOF_KIND_VALUES:
         errors.append("Surface claim has unknown proof_kind")
 
     return ContractResult(errors=tuple(errors), warnings=(), owned_paths=())
@@ -218,39 +239,92 @@ def evaluate_estate(payload: str) -> EstateResult:
 
     errors: list[str] = []
     warnings: list[str] = []
-    surfaces: list[str] = []
-    flow_refs: list[tuple[str, str]] = []
-    current_from: str | None = None
+    surface_records: list[dict[str, str]] = []
+    flow_records: list[dict[str, str]] = []
+    current_record: dict[str, str] | None = None
+    current_section: str | None = None
+    name_seen = False
+    flows_seen = False
 
     for raw in payload.splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
-        if line.startswith("- id:"):
-            surface_id = line.split(":", 1)[1].strip()
-            if surface_id:
-                surfaces.append(surface_id)
+        if line.startswith("name:"):
+            name_seen = True
+            if not line.split(":", 1)[1].strip():
+                errors.append("Estate must define non-empty name")
+            continue
+        if line == "surfaces:":
+            current_section = "surfaces"
+            current_record = None
+            continue
+        if line == "flows:":
+            flows_seen = True
+            current_section = "flows"
+            current_record = None
+            continue
+        if line.startswith("- "):
+            if current_section == "surfaces":
+                current_record = {}
+                surface_records.append(current_record)
+            elif current_section == "flows":
+                current_record = {}
+                flow_records.append(current_record)
             else:
-                errors.append("Estate surface has an empty id")
-            continue
-        if line.startswith("- from:"):
-            current_from = line.split(":", 1)[1].strip()
-            continue
-        if line.startswith("to:") and current_from is not None:
-            flow_refs.append((current_from, line.split(":", 1)[1].strip()))
-            current_from = None
+                current_record = None
+            line = line[2:].strip()
+        if current_record is not None and ":" in line:
+            key, value = line.split(":", 1)
+            current_record[key.strip()] = value.strip()
+
+    surfaces: list[str] = []
+    for surface in surface_records:
+        surface_id = surface.get("id", "")
+        if surface_id:
+            surfaces.append(surface_id)
+        else:
+            errors.append("Estate surface has an empty id")
+
+        display_id = surface_id or "<unknown>"
+        surface_kind = surface.get("kind", "")
+        if not surface_kind:
+            errors.append(f"Estate surface `{display_id}` must include kind")
+        elif surface_kind not in SURFACE_KIND_VALUES:
+            errors.append(f"Estate surface `{display_id}` has unknown kind `{surface_kind}`")
+
+        if not surface.get("authority", ""):
+            errors.append(f"Estate surface `{display_id}` must include authority")
+
+    if not name_seen:
+        errors.append("Estate must define non-empty name")
 
     if not surfaces:
         errors.append("Estate must define at least one surface with `- id:`")
 
     known_surfaces = set(surfaces)
-    for source, target in flow_refs:
+    for flow in flow_records:
+        source = flow.get("from", "")
+        target = flow.get("to", "")
+        proof_required = flow.get("proof_required", "")
+
+        if not source:
+            errors.append("Estate flow has an empty source surface")
+        if not target:
+            errors.append("Estate flow has an empty target surface")
         if source not in known_surfaces:
             errors.append(f"Estate flow references unknown source surface `{source}`")
         if target not in known_surfaces:
             errors.append(f"Estate flow references unknown target surface `{target}`")
 
-    if not flow_refs:
+        if not proof_required:
+            errors.append(f"Estate flow from `{source}` to `{target}` must include proof_required")
+        elif proof_required not in PROOF_KIND_VALUES:
+            errors.append(f"Estate flow from `{source}` to `{target}` has unknown proof_required `{proof_required}`")
+
+    if not flows_seen:
+        errors.append("Estate must define flows section")
+    elif not flow_records:
         warnings.append("Estate defines no flows")
 
     return EstateResult(errors=tuple(errors), warnings=tuple(warnings), surfaces=tuple(surfaces))
