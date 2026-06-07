@@ -10,6 +10,7 @@ workflow docs as operational templates.
 - [Claim boundaries](concepts/claim-boundaries.md)
 - [Privacy model](concepts/privacy.md)
 - [Demo walkthrough](demo.md)
+- [Essay: Source tests are not runtime proof](essays/source-tests-are-not-runtime-proof.md)
 
 ## Workflows
 
@@ -22,12 +23,15 @@ workflow docs as operational templates.
 
 ## Project operations
 
+- [Safe first PR guide](contributing/first-pr.md)
 - [Distribution](distribution.md)
+- [PyPI readiness](release/pypi-readiness.md)
 - [Public roadmap](roadmap.md)
 
 ## Application packet
 
 - [OpenAI Codex for OSS](application/openai-codex-for-oss.md)
 - [Launch copy](application/launch-copy.md)
+- [Narrow launch plan](application/launch-plan.md)
 - [Social posts](application/social-posts.md)
 - [Repository topics](application/repo-topics.md)

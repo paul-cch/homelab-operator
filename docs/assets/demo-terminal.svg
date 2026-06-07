@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675" role="img" aria-labelledby="title desc">
+  <title id="title">Homelab Operator synthetic demo terminal</title>
+  <desc id="desc">A privacy-safe terminal style demo showing an unsafe AI pull request overclaim failing, then a corrected repo_only pull request passing checks.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#17313f"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#020617" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="675" fill="url(#bg)"/>
+
+  <g font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="72" y="76" fill="#e5e7eb" font-size="34" font-weight="700">AI overclaim -&gt; repo_only proof</text>
+    <text x="72" y="112" fill="#a7f3d0" font-size="18">Synthetic demo: fail unsafe PR, fix claim boundary, pass source-only checks</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="72" y="148" width="1056" height="474" rx="8" fill="#0b1220" stroke="#334155"/>
+    <rect x="72" y="148" width="1056" height="44" rx="8" fill="#111827"/>
+    <circle cx="100" cy="170" r="7" fill="#ef4444"/>
+    <circle cx="124" cy="170" r="7" fill="#f59e0b"/>
+    <circle cx="148" cy="170" r="7" fill="#22c55e"/>
+    <text x="592" y="176" text-anchor="middle" fill="#94a3b8" font-family="'SFMono-Regular', Consolas, monospace" font-size="15">public-oss-demo / source-only proof</text>
+
+    <g font-family="'SFMono-Regular', Consolas, monospace" font-size="18">
+      <text x="104" y="232" fill="#fca5a5" font-weight="700">1. Unsafe AI PR overclaim</text>
+      <text x="104" y="265" fill="#cbd5e1">$ homelab-operator check-pr</text>
+      <text x="132" y="292" fill="#cbd5e1">--body-file examples/demo/unsafe-pr-body.md</text>
+      <text x="104" y="329" fill="#f87171">ERROR PR body must state the claim boundary</text>
+      <text x="104" y="356" fill="#f87171">source/host/runtime/live-config not proven</text>
+      <text x="104" y="391" fill="#fbbf24">status=1  blocked before review</text>
+
+      <text x="104" y="439" fill="#86efac" font-weight="700">2. Corrected claim boundary</text>
+      <text x="104" y="472" fill="#cbd5e1">$ homelab-operator check-pr</text>
+      <text x="132" y="499" fill="#cbd5e1">--body-file examples/demo/corrected-pr-body.md</text>
+      <text x="104" y="531" fill="#4ade80">PR_CONTRACT_OK</text>
+
+      <text x="104" y="558" fill="#cbd5e1">$ homelab-operator check-receipt</text>
+      <text x="132" y="583" fill="#cbd5e1">--file examples/demo/merge-ready-receipt.md</text>
+      <text x="104" y="615" fill="#4ade80">RECEIPT_CONTRACT_OK    proof_kind=repo_only</text>
+    </g>
+  </g>
+
+  <g font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="72" y="648" fill="#cbd5e1" font-size="19">Result: confidence for source/docs checks only.</text>
+    <text x="72" y="670" fill="#cbd5e1" font-size="19">Not proof of host checkout, runtime export, live config, or external services.</text>
+  </g>
+</svg>

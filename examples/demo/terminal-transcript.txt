@@ -1,9 +1,15 @@
 # Synthetic Homelab Operator demo transcript
+#
+# Unsafe AI PR overclaim -> failing contract -> corrected repo_only PR -> green
+# source-only checks. This is not host, runtime, live config, external service,
+# or deployment proof.
 
+$ set +e
 $ homelab-operator check-pr --body-file examples/demo/unsafe-pr-body.md
 ERROR PR body must state the source/host/runtime/live-config claim boundary
 
 $ unsafe_status=$?
+$ set -e
 $ printf 'unsafe_status=%s\n' "$unsafe_status"
 unsafe_status=1
 

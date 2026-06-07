@@ -7,6 +7,10 @@
   copy for privacy-safe OSS adoption.
 - Harden the reusable GitHub Action workflow and add manual-only distribution
   publishing notes.
+- Add popularity and contributor materials: sharper README positioning,
+  shareable demo asset, launch plan, safe first-PR guide, issue forms, visible
+  PR template dogfooding, PyPI readiness checklist, and source-vs-runtime proof
+  essay.
 
 ## 1.0.0 - 2026-06-05
 

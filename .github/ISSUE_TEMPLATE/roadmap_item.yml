@@ -1,0 +1,84 @@
+name: Roadmap item
+description: Larger future work with an explicit proof boundary.
+title: "[Roadmap]: "
+labels:
+  - roadmap
+  - needs triage
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What capability, workflow, or documentation path should be added?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: Why would this help adopters or maintainers?
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-scope
+    attributes:
+      label: Proposed scope
+      description: List the bounded work items.
+      placeholder: |
+        - Add a CLI option for one local validation path.
+        - Document the command with synthetic examples.
+        - Add focused tests.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-files
+    attributes:
+      label: Expected files to touch
+      description: Name likely files or folders, even if approximate.
+      placeholder: |
+        - src/homelab_operator/**
+        - tests/**
+        - docs/**
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What must be true before this can be considered done?
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation commands
+      description: Commands expected before review.
+      value: |
+        python -m pip install -e ".[dev]"
+        python -m pytest
+        homelab-operator doctor --root .
+        homelab-operator check-privacy --root .
+    validations:
+      required: true
+  - type: textarea
+    id: claim-boundary
+    attributes:
+      label: Claim boundary
+      description: State the intended proof boundary and what is not proven.
+      value: |
+        Expected proof kind: repo_only
+        Claim proven: repository-local source, docs, examples, schemas, or tests pass the listed checks.
+        Claim not proven: no host checkout, runtime export, live config, deployment, package publish, or external service was checked.
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What should this issue not include?
+      value: |
+        - Private operational details.
+        - Live deployment or runtime proof.
+        - Secret, credential, account, or package-publishing changes.
+    validations:
+      required: true

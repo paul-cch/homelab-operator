@@ -2,9 +2,9 @@
 
 -
 
-## Linked Issue
+## Linked Issues
 
-Refs #
+- Refs #
 
 ## Owned Paths
 
@@ -13,13 +13,16 @@ Refs #
 ## Validation
 
 - `command` result
+- `homelab-operator check-pr --body-file <this-pr-body>` result
+- `homelab-operator check-privacy --root .` result
 
 ## Claim Boundary
 
-Proof kind:
+Proof kind: repo_only
 
-Claim proven:
+Claim proven: this PR proves only the source/docs/example checks listed above.
 
-Claim not proven:
+Claim not proven: this PR does not prove host checkout, runtime export, live
+config, external service health, release, deployment, or end-to-end operation.
 
-Host/runtime/live-config handoff needed:
+Host/runtime/live-config handoff needed: no

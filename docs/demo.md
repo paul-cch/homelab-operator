@@ -1,16 +1,26 @@
 # Demo
 
-This demo is a synthetic terminal walk-through for a source-only documentation
-change. It shows an unsafe pull request body failing, a corrected pull request
-body passing, a merge-ready receipt template, and a green project doctor run.
+This demo is a synthetic, source-only replay that shows the core Homelab
+Operator move: stop an unsafe AI pull request overclaim, correct it to
+`repo_only`, then pass the local contract checks.
+
+![Synthetic terminal demo showing unsafe overclaim failure and corrected repo_only success](assets/demo-terminal.svg)
 
 All paths and outputs are public examples. They do not include private
 hostnames, addresses, logs, runtime state, live config, secrets, or external
-service proof.
+service proof. The image is a static share asset, not deployment or runtime
+evidence.
 
-## Replay Commands
+## 2-Minute Replay
 
-Run from the repository root after installing the development package:
+Run from the repository root after installing the development package. Use the
+Python 3 executable available in your environment; on macOS this is often:
+
+```bash
+python3 -m pip install -e ".[dev]"
+```
+
+Then replay the demo:
 
 ```bash
 set +e
@@ -25,13 +35,25 @@ homelab-operator check-receipt --file examples/demo/merge-ready-receipt.md
 homelab-operator doctor --root .
 ```
 
+What this proves:
+
+- The unsafe pull request body is rejected before review because it claims more
+  than the PR body substantiates.
+- The corrected pull request body passes after it states `repo_only` proof and
+  names what was not checked.
+- The receipt and doctor checks stay inside source/documentation proof. They do
+  not prove host checkout, runtime export, live config, external service status,
+  or end-to-end operation.
+
 ## Expected Transcript
 
 ```text
+$ set +e
 $ homelab-operator check-pr --body-file examples/demo/unsafe-pr-body.md
 ERROR PR body must state the source/host/runtime/live-config claim boundary
 
 $ unsafe_status=$?
+$ set -e
 $ printf 'unsafe_status=%s\n' "$unsafe_status"
 unsafe_status=1
 
@@ -73,6 +95,7 @@ HOMELAB_OPERATOR_DOCTOR_OK
 
 ## Claim Boundary
 
-The corrected example uses `repo_only` proof. It proves only that the local
-source and documentation checks are coherent. It does not prove host checkout,
-runtime export, live config, external service status, or end-to-end operation.
+The corrected example uses `repo_only` proof. It proves only that local source,
+documentation, and contract checks are coherent. It does not prove host
+checkout, runtime export, live config, external service status, or end-to-end
+operation.

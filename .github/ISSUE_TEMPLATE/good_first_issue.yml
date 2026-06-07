@@ -1,0 +1,86 @@
+name: Good first issue
+description: Small, privacy-safe work for a new contributor.
+title: "[Good first issue]: "
+labels:
+  - good first issue
+  - needs triage
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for bounded work that a new contributor can complete with repository-local proof.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What should change?
+      placeholder: Add or polish one synthetic example, doc path, validator message, or focused test.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-files
+    attributes:
+      label: Expected files to touch
+      description: List the files or folders a contributor should expect to edit.
+      placeholder: |
+        - docs/commands.md
+        - tests/test_contracts.py
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What must be true when the issue is done?
+      placeholder: |
+        - The documented command matches the current CLI behavior.
+        - Any new examples are synthetic and privacy-safe.
+        - Relevant checks pass locally.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation commands
+      description: Commands the contributor should run before opening a PR.
+      value: |
+        python -m pip install -e ".[dev]"
+        python -m pytest
+        homelab-operator doctor --root .
+        homelab-operator check-privacy --root .
+    validations:
+      required: true
+  - type: dropdown
+    id: proof-kind
+    attributes:
+      label: Expected proof kind
+      description: Most good-first work should remain repository-local.
+      options:
+        - repo_only
+        - handoff
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: Name boundaries that keep this safe for a first PR.
+      value: |
+        - No private hostnames, IP addresses, domains, logs, runtime state, or live config.
+        - No deployment, release, package publishing, or external service writes.
+        - No host/runtime/live-config proof unless a maintainer explicitly changes the scope.
+    validations:
+      required: true
+  - type: checkboxes
+    id: contributor-fit
+    attributes:
+      label: Good-first checklist
+      options:
+        - label: The issue can be completed without private infrastructure or account access.
+          required: true
+        - label: The expected files to touch are named.
+          required: true
+        - label: The validation commands are named.
+          required: true
+        - label: The claim boundary is expected to be `repo_only` or a clear `handoff`.
+          required: true
