@@ -24,13 +24,27 @@ classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Environment :: Console",
   "Intended Audience :: Developers",
+  "Intended Audience :: System Administrators",
   "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Software Development :: Quality Assurance",
   "Topic :: System :: Systems Administration",
+  "Topic :: Utilities",
+  "Typing :: Typed",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/paul-cch/homelab-operator"
+Documentation = "https://github.com/paul-cch/homelab-operator/tree/main/docs"
+Repository = "https://github.com/paul-cch/homelab-operator"
+Issues = "https://github.com/paul-cch/homelab-operator/issues"
+Changelog = "https://github.com/paul-cch/homelab-operator/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

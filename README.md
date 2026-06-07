@@ -9,6 +9,49 @@ The project is intentionally boring: templates, schemas, receipts, and a small
 Python CLI that makes agents say what they changed, what they verified, what
 they did not verify, and the next safe handoff.
 
+## Proof Demo
+
+Before: this PR body overclaims runtime proof from a local source check. With no
+claim boundary, `check-pr` fails:
+
+```bash
+cat > /tmp/pr.md <<'EOF'
+## Summary
+Patch the dashboard and confirm the service is healthy in production.
+## Linked Issue
+Closes #42
+## Owned Paths
+- `README.md`
+## Validation
+- `python -m pytest` passed.
+EOF
+
+homelab-operator check-pr --body-file /tmp/pr.md
+# ERROR PR body must state the source/host/runtime/live-config claim boundary
+```
+
+After: bound the claim to the proof that actually ran, and it passes:
+
+```bash
+cat > /tmp/pr.md <<'EOF'
+## Summary
+Clarify the dashboard documentation.
+## Linked Issue
+Refs #42
+## Owned Paths
+- `README.md`
+## Validation
+- `python -m pytest` passed.
+## Claim Boundary
+Proof kind: repo_only.
+Claim proven: local documentation and tests are coherent.
+Claim not proven: no host checkout, runtime export, live config, or external service was checked.
+EOF
+
+homelab-operator check-pr --body-file /tmp/pr.md
+# PR_CONTRACT_OK
+```
+
 ## Why this exists
 
 Coding agents are increasingly good at editing infrastructure repos. They are
@@ -24,6 +67,7 @@ agent-authored work stays reviewable.
 ```bash
 python -m pip install -e ".[dev]"
 homelab-operator check-pr --body-file tests/fixtures/good_pr_body.md
+homelab-operator check-pr --body-file tests/fixtures/good_pr_body.md --json
 homelab-operator receipt-template --state MERGE_READY
 homelab-operator check-receipt --file tests/fixtures/good_receipt.md
 homelab-operator check-claim --json-file tests/fixtures/surface_claim.json
@@ -79,6 +123,9 @@ It also catches common unsafe patterns:
 | `homelab-operator doctor` | Run the built-in project contract checks. |
 | `homelab-operator init` | Install templates into another repository. |
 
+Most validation commands also accept `--json` for machine-readable CI or agent
+handoff output.
+
 ## Install into another repo
 
 ```bash
@@ -96,15 +143,21 @@ Existing files are skipped unless `--force` is passed.
 
 ## Documentation
 
+- [Demo walkthrough](docs/demo.md)
 - [Proof ladder](docs/concepts/proof-ladder.md)
 - [Command reference](docs/commands.md)
 - [Claim boundaries](docs/concepts/claim-boundaries.md)
 - [Privacy model](docs/concepts/privacy.md)
+- [GitHub Action workflow](docs/workflows/github-action.md)
 - [Source change workflow](docs/workflows/source-change.md)
 - [Deploy handoff workflow](docs/workflows/deploy-handoff.md)
 - [Watcher automation workflow](docs/workflows/watcher-automation.md)
 - [Blocked with evidence workflow](docs/workflows/blocked-with-evidence.md)
+- [Dogfooding workflow](docs/workflows/dogfooding.md)
+- [Distribution notes](docs/distribution.md)
+- [Public roadmap](docs/roadmap.md)
 - [OpenAI Codex for OSS application packet](docs/application/openai-codex-for-oss.md)
+- [Launch copy and repository topics](docs/application/launch-copy.md)
 
 ## Public examples only
 

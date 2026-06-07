@@ -1,4 +1,4 @@
-name: Homelab Operator Contract
+name: PR Contract
 
 on:
   pull_request:
@@ -9,14 +9,14 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: homelab-operator-contract-${{ github.event.pull_request.number }}
+  group: pr-contract-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 env:
   HOMELAB_OPERATOR_REF: v1.0.0
 
 jobs:
-  pr-contract:
+  validate-pr-contract:
     name: Validate PR body and privacy
     runs-on: ubuntu-latest
     steps:

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add JSON output for validation commands and `doctor`.
+- Add a synthetic demo, dogfood receipt, public roadmap issue drafts, and launch
+  copy for privacy-safe OSS adoption.
+- Harden the reusable GitHub Action workflow and add manual-only distribution
+  publishing notes.
+
 ## 1.0.0 - 2026-06-05
 
 - Add stable v1.0 CLI surface with `check-estate`, `check-privacy`, and
