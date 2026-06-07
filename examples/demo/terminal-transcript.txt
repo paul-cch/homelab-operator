@@ -1,0 +1,43 @@
+# Synthetic Homelab Operator demo transcript
+
+$ homelab-operator check-pr --body-file examples/demo/unsafe-pr-body.md
+ERROR PR body must state the source/host/runtime/live-config claim boundary
+
+$ unsafe_status=$?
+$ printf 'unsafe_status=%s\n' "$unsafe_status"
+unsafe_status=1
+
+$ homelab-operator check-pr --body-file examples/demo/corrected-pr-body.md
+PR_CONTRACT_OK
+
+$ homelab-operator receipt-template --state MERGE_READY
+## Agent Lane Receipt
+
+- Exit state: MERGE_READY
+- Issue:
+- Branch / worktree:
+- PR:
+- Owned paths:
+- Surface classification:
+- Proof kind:
+- Claim proven:
+- Claim not proven:
+- Repo gate:
+- Host/runtime handoff needed:
+- Host gate needed:
+- Runtime gate needed:
+- Live config gate needed:
+- Checks or commands run:
+- Blockers:
+- Next safe command:
+
+$ homelab-operator check-receipt --file examples/demo/merge-ready-receipt.md
+RECEIPT_CONTRACT_OK
+
+$ homelab-operator doctor --root .
+PR_CONTRACT_OK
+RECEIPT_CONTRACT_OK
+SURFACE_CLAIM_OK
+ESTATE_CONTRACT_OK
+PRIVACY_SCAN_OK
+HOMELAB_OPERATOR_DOCTOR_OK
