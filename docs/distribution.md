@@ -85,6 +85,9 @@ Add the PyPI badges only after the PyPI project exists.
 7. Create the tag or GitHub release only after review.
 8. Publish to PyPI as a separate manual action.
 
+Before any real publish, complete the compact PyPI readiness gate in
+[`docs/release/pypi-readiness.md`](release/pypi-readiness.md).
+
 ## Manual PyPI Publish
 
 Publishing is intentionally manual. Do not publish from ordinary documentation

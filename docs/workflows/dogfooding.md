@@ -7,7 +7,8 @@ schemas, and privacy boundaries.
 
 ## Rule
 
-Treat this repository like any other adopter:
+Treat this repository like any other adopter. Every future Homelab Operator PR
+should use the repository pull request template contract:
 
 1. Name the owned paths before editing.
 2. Run the repo gate that matches the change.
@@ -15,6 +16,15 @@ Treat this repository like any other adopter:
 4. End the work with a lane receipt.
 5. Keep the proof kind at `repo_only` unless a public example proves a wider
    surface.
+
+The contract sections are `Summary`, `Linked Issues`, `Owned Paths`,
+`Validation`, and `Claim Boundary`. `Linked Issues` can use `Refs #123`,
+`Part of #123`, or `None supplied.` when there is no issue. Keep the claim
+boundary at `repo_only` for source, docs, schema, template, and synthetic
+example changes. Use a deeper proof kind only when the PR includes a public,
+reproducible check that proves that deeper surface. If a private host, runtime
+export, live config, or external service still needs verification, say so as a
+handoff instead of claiming it in the public PR.
 
 Dogfooding must stay public and synthetic. Do not add private hostnames,
 addresses, domains, logs, runtime state, live config, secrets, or personal
@@ -67,8 +77,10 @@ RECEIPT_CONTRACT_OK
 Copy the discipline, not private evidence:
 
 - keep owned paths explicit
+- use `.github/pull_request_template.md` for every future PR
 - run the smallest relevant repo gate
 - record what `repo_only` proved
 - record what it did not prove
+- keep `repo_only` unless a public check proves a deeper surface
 - use `HOST_RUNTIME_HANDOFF` when a later host or runtime check is needed
 - leave private runtime and live-config details out of public examples

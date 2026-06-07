@@ -1,13 +1,43 @@
 # Homelab Operator
 
-Homelab Operator is a contract layer for AI-assisted infrastructure maintenance.
-It helps coding agents and human maintainers keep source changes, GitHub
-coordination, host checkout state, runtime exports, live mutable config, and
-external service proof separate.
+[![CI](https://github.com/paul-cch/homelab-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/paul-cch/homelab-operator/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
-The project is intentionally boring: templates, schemas, receipts, and a small
-Python CLI that makes agents say what they changed, what they verified, what
-they did not verify, and the next safe handoff.
+Homelab Operator is a privacy-safe contract checker for AI-assisted
+infrastructure PRs.
+
+It helps maintainers review agent-authored work without blurring claim
+boundaries: a local source check can prove repo coherence, but it cannot prove
+host checkout, runtime export, live config, or external service health. The CLI
+validates PR bodies, lane receipts, JSON surface claims, synthetic estate
+examples, and privacy scans so every handoff says what was and was not verified.
+
+## Try It In 2 Minutes
+
+Run the synthetic `repo_only` demo from a clean checkout:
+
+```bash
+git clone https://github.com/paul-cch/homelab-operator.git
+cd homelab-operator
+python3 -m pip install -e ".[dev]"
+homelab-operator check-pr --body-file examples/demo/unsafe-pr-body.md || true
+homelab-operator check-pr --body-file examples/demo/corrected-pr-body.md
+homelab-operator doctor --root .
+```
+
+You should see the unsafe PR fail for a missing claim boundary, the corrected
+`repo_only` PR pass, and the project doctor end with
+`HOMELAB_OPERATOR_DOCTOR_OK`.
+
+## What Reviewers Get
+
+- a shared proof ladder for repo source, GitHub coordination, host checkout,
+  runtime export, live config, and external service checks
+- PR and receipt contracts that put "claim proven" and "claim not proven" into
+  the review surface
+- privacy-safe examples that are synthetic by default
+- JSON output for CI and agent handoffs
 
 ## Proof Demo
 
@@ -60,12 +90,17 @@ prove source coherence; it cannot prove a host pulled the change, a runtime was
 exported, or a live service is healthy.
 
 Homelab Operator gives maintainers a reusable proof vocabulary and CI checks so
-agent-authored work stays reviewable.
+agent-authored work stays reviewable. The project is intentionally boring:
+templates, schemas, receipts, and a small Python CLI that makes agents say what
+they changed, what they verified, what they did not verify, and the next safe
+handoff.
 
-## Quickstart
+## More Local Checks
+
+After installing from the try path, these commands exercise the rest of the
+contract surface:
 
 ```bash
-python -m pip install -e ".[dev]"
 homelab-operator check-pr --body-file tests/fixtures/good_pr_body.md
 homelab-operator check-pr --body-file tests/fixtures/good_pr_body.md --json
 homelab-operator receipt-template --state MERGE_READY
@@ -75,10 +110,14 @@ homelab-operator check-estate --file examples/minimal-homelab/estate.yaml
 homelab-operator doctor --root .
 ```
 
-Expected result:
+Expected plain-text checks include:
 
 ```text
 PR_CONTRACT_OK
+RECEIPT_CONTRACT_OK
+SURFACE_CLAIM_OK
+ESTATE_CONTRACT_OK
+HOMELAB_OPERATOR_DOCTOR_OK
 ```
 
 ## Proof ladder
@@ -144,6 +183,7 @@ Existing files are skipped unless `--force` is passed.
 ## Documentation
 
 - [Demo walkthrough](docs/demo.md)
+- [Shareable demo asset](docs/assets/demo-terminal.svg)
 - [Proof ladder](docs/concepts/proof-ladder.md)
 - [Command reference](docs/commands.md)
 - [Claim boundaries](docs/concepts/claim-boundaries.md)
@@ -154,10 +194,17 @@ Existing files are skipped unless `--force` is passed.
 - [Watcher automation workflow](docs/workflows/watcher-automation.md)
 - [Blocked with evidence workflow](docs/workflows/blocked-with-evidence.md)
 - [Dogfooding workflow](docs/workflows/dogfooding.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Safe first PR guide](docs/contributing/first-pr.md)
 - [Distribution notes](docs/distribution.md)
+- [PyPI readiness](docs/release/pypi-readiness.md)
 - [Public roadmap](docs/roadmap.md)
+- [Essay: Source tests are not runtime proof](docs/essays/source-tests-are-not-runtime-proof.md)
 - [OpenAI Codex for OSS application packet](docs/application/openai-codex-for-oss.md)
-- [Launch copy and repository topics](docs/application/launch-copy.md)
+- [Launch copy](docs/application/launch-copy.md)
+- [Narrow launch plan](docs/application/launch-plan.md)
+- [Social posts](docs/application/social-posts.md)
+- [Repository topics](docs/application/repo-topics.md)
 
 ## Public examples only
 
