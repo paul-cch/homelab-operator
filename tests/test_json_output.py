@@ -89,6 +89,8 @@ def test_check_privacy_json_reports_failures_without_stderr(tmp_path: Path, caps
     assert payload["ok"] is False
     assert payload["warnings"] == []
     assert payload["files_scanned"] == 1
+    assert payload["privacy_config"] is None
+    assert payload["custom_privacy_rules"] == 0
     assert any("Privacy scan matched" in error for error in payload["errors"])
 
 
@@ -106,3 +108,96 @@ def test_doctor_json_includes_nested_checks(capsys) -> None:
     assert checks["receipt"]["fields"]["Proof kind"] == "repo_only"
     assert set(checks["estate"]["surfaces"]) == {"source", "host", "runtime", "live-config"}
     assert checks["privacy"]["files_scanned"] > 0
+
+
+def test_check_privacy_json_loads_default_config_without_leaking_match(tmp_path: Path, capsys) -> None:
+    config = tmp_path / ".homelab-operator-privacy.toml"
+    sample = tmp_path / "sample.txt"
+    config.write_text(
+        """[privacy]
+[[privacy.deny_patterns]]
+id = "synthetic.project-code"
+description = "Synthetic project marker"
+pattern = 'SYNTHETIC-PROJECT'
+""",
+        encoding="utf-8",
+    )
+    sample.write_text("public sample uses SYNTHETIC-PROJECT\n", encoding="utf-8")
+
+    code, payload = run_json(capsys, ["check-privacy", "--root", str(tmp_path), "--json"])
+
+    assert code == 1
+    assert payload["ok"] is False
+    assert payload["privacy_config"] == str(config)
+    assert payload["custom_privacy_rules"] == 1
+    assert payload["files_scanned"] == 2
+    assert payload["errors"] == [
+        f"{sample}: Privacy scan matched rule `synthetic.project-code`: Synthetic project marker"
+    ]
+    assert "SYNTHETIC-PROJECT" not in payload["errors"][0]
+
+
+def test_check_privacy_json_does_not_self_match_config_patterns(tmp_path: Path, capsys) -> None:
+    config = tmp_path / ".homelab-operator-privacy.toml"
+    config.write_text(
+        """[privacy]
+[[privacy.deny_patterns]]
+id = "synthetic.literal"
+description = "Synthetic literal marker"
+pattern = 'SECRET_PROJECT'
+""",
+        encoding="utf-8",
+    )
+
+    code, payload = run_json(capsys, ["check-privacy", "--root", str(tmp_path), "--json"])
+
+    assert code == 0
+    assert payload["ok"] is True
+    assert payload["privacy_config"] == str(config)
+    assert payload["custom_privacy_rules"] == 1
+    assert payload["files_scanned"] == 1
+    assert payload["errors"] == []
+
+
+def test_check_privacy_json_reports_invalid_config_without_leaking_pattern(tmp_path: Path, capsys) -> None:
+    config = tmp_path / "privacy.toml"
+    pattern = "SECRET-SAMPLE-" * 24
+    config.write_text(
+        f"""[privacy]
+[[privacy.deny_patterns]]
+id = "synthetic.long"
+description = "Synthetic long literal"
+pattern = '{pattern}'
+""",
+        encoding="utf-8",
+    )
+
+    code, payload = run_json(
+        capsys,
+        ["check-privacy", "--root", str(tmp_path), "--privacy-config", "privacy.toml", "--json"],
+    )
+
+    assert code == 1
+    assert payload["ok"] is False
+    assert payload["files_scanned"] == 0
+    assert payload["privacy_config"] == str(config)
+    assert payload["custom_privacy_rules"] == 0
+    assert payload["errors"] == ["Privacy config rule `synthetic.long` has `pattern` longer than 256 characters"]
+    assert pattern not in payload["errors"][0]
+
+
+def test_check_privacy_json_reports_non_utf8_config_without_traceback(tmp_path: Path, capsys) -> None:
+    config = tmp_path / "privacy.toml"
+    config.write_bytes(b"\xff\xfe\xfa")
+
+    code, payload = run_json(
+        capsys,
+        ["check-privacy", "--root", str(tmp_path), "--privacy-config", "privacy.toml", "--json"],
+    )
+
+    assert code == 1
+    assert payload["ok"] is False
+    assert payload["files_scanned"] == 0
+    assert payload["privacy_config"] == str(config)
+    assert payload["custom_privacy_rules"] == 0
+    assert payload["errors"] == ["Privacy config must be valid UTF-8 text"]

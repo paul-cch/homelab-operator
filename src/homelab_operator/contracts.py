@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+import tomllib
 from dataclasses import dataclass
 from enum import Enum
+from pathlib import Path
 
 
 class ExitState(str, Enum):
@@ -89,11 +91,47 @@ CLOSING_REF_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#\d+
 BARE_CLOSING_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(?:\D|$)", re.I)
 PARTIAL_WORK_RE = re.compile(r"\b(first|remaining|partial|slice|part of|follow-up|coordinator|later|not close|refs?)\b", re.I)
 COMMAND_RE = re.compile(r"`[^`]+`|\b(?:python|pytest|ruff|mypy|git |bash |shellcheck |npm |pnpm |cargo |go test)\b")
-PRIVATE_PATTERNS = (
-    re.compile(r"\b(?:10|127|172\.(?:1[6-9]|2\d|3[0-1])|192\.168)\.\d{1,3}\.\d{1,3}\b"),
-    re.compile(r"(?i)\b(?:authorization|api[_-]?key|access[_-]?token|secret[_-]?key|password)\s*[:=]\s*['\"]?[^'\"\s]+"),
-    re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----"),
+PRIVACY_RULE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
+
+
+@dataclass(frozen=True)
+class PrivacyRule:
+    rule_id: str
+    description: str
+    pattern: re.Pattern[str] | None = None
+    literal: str | None = None
+    source: str = "built-in"
+
+    def matches(self, text: str) -> bool:
+        if self.literal is not None:
+            return self.literal in text
+        return bool(self.pattern and self.pattern.search(text))
+
+
+class PrivacyConfigError(ValueError):
+    """Raised when a privacy config cannot be loaded safely."""
+
+
+BUILTIN_PRIVACY_RULES = (
+    PrivacyRule(
+        rule_id="builtin.private-ipv4",
+        description="Private or loopback IPv4 address",
+        pattern=re.compile(r"\b(?:10|127|172\.(?:1[6-9]|2\d|3[0-1])|192\.168)\.\d{1,3}\.\d{1,3}\b"),
+    ),
+    PrivacyRule(
+        rule_id="builtin.credential-assignment",
+        description="Credential-like assignment",
+        pattern=re.compile(
+            r"(?i)\b(?:authorization|api[_-]?key|access[_-]?token|secret[_-]?key|password)\s*[:=]\s*['\"]?[^'\"\s]+"
+        ),
+    ),
+    PrivacyRule(
+        rule_id="builtin.private-key-block",
+        description="Private key block marker",
+        pattern=re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----"),
+    ),
 )
+PRIVATE_PATTERNS = tuple(rule.pattern for rule in BUILTIN_PRIVACY_RULES)
 
 
 @dataclass(frozen=True)
@@ -127,6 +165,65 @@ class EstateResult:
     @property
     def ok(self) -> bool:
         return not self.errors
+
+
+def privacy_match_error(rule: PrivacyRule) -> str:
+    return f"Privacy scan matched rule `{rule.rule_id}`: {rule.description}"
+
+
+def load_privacy_config(path: Path) -> tuple[PrivacyRule, ...]:
+    if not path.exists():
+        raise PrivacyConfigError(f"Privacy config not found: {path}")
+
+    try:
+        raw_config = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise PrivacyConfigError("Privacy config must be valid UTF-8 text") from exc
+
+    try:
+        data = tomllib.loads(raw_config)
+    except tomllib.TOMLDecodeError as exc:
+        raise PrivacyConfigError(f"Privacy config is not valid TOML: {exc.msg}") from exc
+
+    privacy = data.get("privacy")
+    if not isinstance(privacy, dict):
+        raise PrivacyConfigError("Privacy config must define a [privacy] table")
+
+    deny_patterns = privacy.get("deny_patterns")
+    if deny_patterns is None:
+        return ()
+    if not isinstance(deny_patterns, list):
+        raise PrivacyConfigError("Privacy config `privacy.deny_patterns` must be a list")
+
+    rules: list[PrivacyRule] = []
+    for index, item in enumerate(deny_patterns, start=1):
+        if not isinstance(item, dict):
+            raise PrivacyConfigError(f"Privacy config rule {index} must be a table")
+
+        rule_id = item.get("id")
+        description = item.get("description")
+        pattern = item.get("pattern")
+        if not isinstance(rule_id, str) or not rule_id.strip():
+            raise PrivacyConfigError(f"Privacy config rule {index} must include non-empty `id`")
+        if not PRIVACY_RULE_ID_RE.fullmatch(rule_id):
+            raise PrivacyConfigError(f"Privacy config rule {index} has invalid `id`")
+        if not isinstance(description, str) or not description.strip():
+            raise PrivacyConfigError(f"Privacy config rule `{rule_id}` must include non-empty `description`")
+        if not isinstance(pattern, str) or not pattern:
+            raise PrivacyConfigError(f"Privacy config rule `{rule_id}` must include non-empty `pattern`")
+        if len(pattern) > 256:
+            raise PrivacyConfigError(f"Privacy config rule `{rule_id}` has `pattern` longer than 256 characters")
+
+        rules.append(
+            PrivacyRule(
+                rule_id=rule_id,
+                description=description.strip(),
+                literal=pattern,
+                source=str(path),
+            )
+        )
+
+    return tuple(rules)
 
 
 def section_key(title: str) -> str:
@@ -330,8 +427,12 @@ def evaluate_estate(payload: str) -> EstateResult:
     return EstateResult(errors=tuple(errors), warnings=tuple(warnings), surfaces=tuple(surfaces))
 
 
-def scan_privacy(text: str) -> ContractResult:
-    errors = [f"Privacy scan matched `{pattern.pattern}`" for pattern in PRIVATE_PATTERNS if pattern.search(text)]
+def scan_privacy(text: str, extra_rules: tuple[PrivacyRule, ...] = ()) -> ContractResult:
+    errors = [
+        privacy_match_error(rule)
+        for rule in (*BUILTIN_PRIVACY_RULES, *extra_rules)
+        if rule.matches(text)
+    ]
     return ContractResult(errors=tuple(errors), warnings=(), owned_paths=())
 
 

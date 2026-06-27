@@ -107,6 +107,7 @@ homelab-operator receipt-template --state MERGE_READY
 homelab-operator check-receipt --file tests/fixtures/good_receipt.md
 homelab-operator check-claim --json-file tests/fixtures/surface_claim.json
 homelab-operator check-estate --file examples/minimal-homelab/estate.yaml
+homelab-operator check-privacy --root .
 homelab-operator doctor --root .
 ```
 

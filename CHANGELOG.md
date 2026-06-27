@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Add JSON output for validation commands and `doctor`.
+- Add configurable extra privacy deny patterns while preserving built-in checks.
 - Add opt-in `pre-commit` hooks for local privacy and contract checks.
 - Add a synthetic demo, dogfood receipt, public roadmap issue drafts, and launch
   copy for privacy-safe OSS adoption.

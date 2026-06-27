@@ -62,9 +62,33 @@ credential assignments, and private key blocks.
 ```bash
 homelab-operator check-privacy --root .
 homelab-operator check-privacy --root . --json
+homelab-operator check-privacy --root . --privacy-config privacy-rules.toml
 ```
 
-JSON includes `files_scanned`.
+By default, `check-privacy` loads `.homelab-operator-privacy.toml` from
+`--root` when that file exists. Use `--privacy-config` to point at another TOML
+file. Built-in high-risk checks always run, even when extra rules are loaded.
+
+Additional deny rules use this synthetic shape:
+
+```toml
+[privacy]
+
+[[privacy.deny_patterns]]
+id = "synthetic.project-code"
+description = "Synthetic project marker"
+pattern = 'SYNTHETIC-PROJECT'
+```
+
+`id` must be a short lowercase identifier containing letters, digits, `.`, `_`,
+or `-`. `description` is shown in failures. `pattern` is a literal substring,
+not a regular expression. Match output reports rule ids and descriptions, not
+captured values. Malformed config fails before scanning and does not echo the
+configured pattern.
+The config file itself is scanned with built-in rules only, so literal custom
+patterns do not fail just because they appear in their own rule definition.
+
+JSON includes `files_scanned`, `privacy_config`, and `custom_privacy_rules`.
 
 ## `doctor`
 
@@ -73,6 +97,7 @@ Run the built-in project contract checks.
 ```bash
 homelab-operator doctor --root .
 homelab-operator doctor --root . --json
+homelab-operator doctor --root . --privacy-config privacy-rules.toml
 ```
 
 JSON includes nested `checks` for the built-in contract and privacy scans.
