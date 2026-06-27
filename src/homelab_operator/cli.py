@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import importlib.metadata
 import json
+import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -17,8 +19,10 @@ from .contracts import (
     evaluate_receipt,
     evaluate_surface_claim,
     load_privacy_config,
+    privacy_finding_error,
     receipt_template,
     scan_privacy,
+    scan_privacy_findings,
 )
 from .scaffold import INIT_FILES
 
@@ -54,7 +58,111 @@ def print_json(payload: dict[str, Any]) -> None:
     print(json.dumps(payload, sort_keys=True))
 
 
-def emit_result(args: argparse.Namespace, result: Any, ok_message: str, fields: tuple[str, ...] = ()) -> int:
+@dataclass(frozen=True)
+class GithubAnnotation:
+    file: str | None
+    line: int
+    title: str
+    message: str
+
+
+def annotation_escape(value: str, *, property_value: bool = False) -> str:
+    escaped = value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+    if property_value:
+        escaped = escaped.replace(":", "%3A").replace(",", "%2C")
+    return escaped
+
+
+def emit_github_annotations(annotations: list[GithubAnnotation]) -> None:
+    for annotation in annotations:
+        properties = [f"title={annotation_escape(annotation.title, property_value=True)}"]
+        if annotation.file:
+            properties.insert(0, f"file={annotation_escape(annotation.file, property_value=True)}")
+        if annotation.line > 0:
+            properties.append(f"line={annotation.line}")
+        message = annotation_escape(annotation.message)
+        print(f"::error {','.join(properties)}::{message}", file=sys.stderr)
+
+
+def annotation_rule_id(message: str, prefix: str) -> str:
+    privacy_rule = re.search(r"rule `([^`]+)`", message)
+    if privacy_rule:
+        return privacy_rule.group(1)
+    slug = re.sub(r"[^a-z0-9]+", "-", message.lower()).strip("-")[:64].strip("-")
+    return f"{prefix}.{slug or 'failure'}"
+
+
+def heading_line(text: str, *headings: str) -> int:
+    wanted = {re.sub(r"[^a-z0-9]+", " ", heading.lower()).strip() for heading in headings}
+    for line_number, raw in enumerate(text.splitlines(), start=1):
+        match = re.match(r"^\s{0,3}#{1,6}\s+(.+?)\s*$", raw)
+        if match and re.sub(r"[^a-z0-9]+", " ", match.group(1).lower()).strip() in wanted:
+            return line_number
+    return 1
+
+
+def line_for_error(text: str, message: str) -> int:
+    lowered = message.lower()
+    if "empty bullet placeholder" in lowered:
+        for line_number, raw in enumerate(text.splitlines(), start=1):
+            if re.match(r"^\s*-\s*$", raw):
+                return line_number
+    if "bare closing placeholder" in lowered:
+        for line_number, raw in enumerate(text.splitlines(), start=1):
+            if re.search(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(?:\D|$)", raw, re.I):
+                return line_number
+    if "summary" in lowered:
+        return heading_line(text, "Summary")
+    if "linked issue" in lowered:
+        return heading_line(text, "Linked Issue", "Linked Issues")
+    if "owned paths" in lowered:
+        return heading_line(text, "Owned Paths")
+    if "validation" in lowered:
+        return heading_line(text, "Validation", "Verification")
+    if "claim boundary" in lowered or "source/host/runtime/live-config" in lowered:
+        return heading_line(text, "Claim Boundary")
+    for line_number, raw in enumerate(text.splitlines(), start=1):
+        if raw.strip() and raw.strip() in message:
+            return line_number
+    return 1
+
+
+def result_annotations(result: Any, file: str | None, text: str, prefix: str) -> list[GithubAnnotation]:
+    annotations: list[GithubAnnotation] = []
+    for warning in result.warnings:
+        annotations.append(
+            GithubAnnotation(
+                file=file,
+                line=line_for_error(text, warning),
+                title=f"homelab-operator/{annotation_rule_id(warning, prefix)}",
+                message=warning,
+            )
+        )
+    for error in result.errors:
+        annotations.append(
+            GithubAnnotation(
+                file=file,
+                line=line_for_error(text, error),
+                title=f"homelab-operator/{annotation_rule_id(error, prefix)}",
+                message=error,
+            )
+        )
+    return annotations
+
+
+def emit_result(
+    args: argparse.Namespace,
+    result: Any,
+    ok_message: str,
+    fields: tuple[str, ...] = (),
+    *,
+    annotation_file: str | None = None,
+    annotation_text: str = "",
+    annotation_prefix: str = "contract",
+) -> int:
+    if getattr(args, "github_annotations", False) and not result.ok:
+        emit_github_annotations(result_annotations(result, annotation_file, annotation_text, annotation_prefix))
+
     if args.json:
         print_json(result_payload(result, fields))
         return 0 if result.ok else 1
@@ -70,11 +178,20 @@ def emit_result(args: argparse.Namespace, result: Any, ok_message: str, fields: 
 
 
 def cmd_check_pr(args: argparse.Namespace) -> int:
-    result = evaluate_pr_body(read_text(args.body_file))
+    body = read_text(args.body_file)
+    result = evaluate_pr_body(body)
     if result.ok:
         if args.write_owned_paths and result.owned_paths:
             Path(args.write_owned_paths).write_text("\n".join(result.owned_paths) + "\n", encoding="utf-8")
-    return emit_result(args, result, "PR_CONTRACT_OK", ("owned_paths",))
+    return emit_result(
+        args,
+        result,
+        "PR_CONTRACT_OK",
+        ("owned_paths",),
+        annotation_file=args.body_file,
+        annotation_text=body,
+        annotation_prefix="pr",
+    )
 
 
 def cmd_receipt_template(args: argparse.Namespace) -> int:
@@ -83,18 +200,44 @@ def cmd_receipt_template(args: argparse.Namespace) -> int:
 
 
 def cmd_check_receipt(args: argparse.Namespace) -> int:
-    result = evaluate_receipt(read_text(args.file))
-    return emit_result(args, result, "RECEIPT_CONTRACT_OK", ("fields",))
+    receipt = read_text(args.file)
+    result = evaluate_receipt(receipt)
+    return emit_result(
+        args,
+        result,
+        "RECEIPT_CONTRACT_OK",
+        ("fields",),
+        annotation_file=args.file,
+        annotation_text=receipt,
+        annotation_prefix="receipt",
+    )
 
 
 def cmd_check_claim(args: argparse.Namespace) -> int:
-    result = evaluate_surface_claim(read_text(args.json_file))
-    return emit_result(args, result, "SURFACE_CLAIM_OK")
+    claim = read_text(args.json_file)
+    result = evaluate_surface_claim(claim)
+    return emit_result(
+        args,
+        result,
+        "SURFACE_CLAIM_OK",
+        annotation_file=args.json_file,
+        annotation_text=claim,
+        annotation_prefix="surface-claim",
+    )
 
 
 def cmd_check_estate(args: argparse.Namespace) -> int:
-    result = evaluate_estate(read_text(args.file))
-    return emit_result(args, result, "ESTATE_CONTRACT_OK", ("surfaces",))
+    estate = read_text(args.file)
+    result = evaluate_estate(estate)
+    return emit_result(
+        args,
+        result,
+        "ESTATE_CONTRACT_OK",
+        ("surfaces",),
+        annotation_file=args.file,
+        annotation_text=estate,
+        annotation_prefix="estate",
+    )
 
 
 def iter_text_files(root: Path) -> list[Path]:
@@ -118,19 +261,29 @@ def privacy_config_path(root: Path, config_file: str | None) -> Path | None:
 
 def privacy_payload(root: Path, config_file: str | None = None) -> dict[str, Any]:
     errors: list[str] = []
+    annotations: list[dict[str, Any]] = []
     files_scanned = 0
     config_path = privacy_config_path(root, config_file)
     resolved_config_path = config_path.resolve() if config_path else None
     try:
         extra_rules = load_privacy_config(config_path) if config_path else ()
     except PrivacyConfigError as exc:
+        message = str(exc)
         return {
             "ok": False,
-            "errors": [str(exc)],
+            "errors": [message],
             "warnings": [],
             "files_scanned": 0,
             "privacy_config": str(config_path),
             "custom_privacy_rules": 0,
+            "annotations": [
+                {
+                    "file": str(config_path),
+                    "line": 1,
+                    "rule_id": "privacy.config",
+                    "message": message,
+                }
+            ],
         }
 
     for path in iter_text_files(root):
@@ -142,6 +295,15 @@ def privacy_payload(root: Path, config_file: str | None = None) -> dict[str, Any
         rules = () if resolved_config_path and path.resolve() == resolved_config_path else extra_rules
         result = scan_privacy(text, rules)
         errors.extend(f"{path}: {error}" for error in result.errors)
+        for finding in scan_privacy_findings(text, rules):
+            annotations.append(
+                {
+                    "file": str(path),
+                    "line": finding.line,
+                    "rule_id": finding.rule_id,
+                    "message": privacy_finding_error(finding),
+                }
+            )
     return {
         "ok": not errors,
         "errors": errors,
@@ -149,11 +311,62 @@ def privacy_payload(root: Path, config_file: str | None = None) -> dict[str, Any
         "files_scanned": files_scanned,
         "privacy_config": str(config_path) if config_path else None,
         "custom_privacy_rules": len(extra_rules),
+        "annotations": annotations,
     }
+
+
+def privacy_github_annotations(payload: dict[str, Any]) -> list[GithubAnnotation]:
+    annotations: list[GithubAnnotation] = []
+    for item in payload.get("annotations", []):
+        if not isinstance(item, dict):
+            continue
+        message = str(item.get("message", "Privacy scan failed"))
+        rule_id = str(item.get("rule_id", "privacy.failure"))
+        try:
+            line = int(item.get("line", 1))
+        except (TypeError, ValueError):
+            line = 1
+        annotations.append(
+            GithubAnnotation(
+                file=str(item["file"]) if item.get("file") else None,
+                line=line,
+                title=f"homelab-operator/{rule_id}",
+                message=message,
+            )
+        )
+    return annotations
+
+
+def doctor_github_annotations(payload: dict[str, Any]) -> list[GithubAnnotation]:
+    annotations: list[GithubAnnotation] = []
+    for check in payload.get("checks", []):
+        if not isinstance(check, dict) or check.get("ok"):
+            continue
+        if check.get("name") == "privacy":
+            annotations.extend(privacy_github_annotations(check))
+            continue
+        path = str(check.get("path") or "")
+        text = ""
+        if path and Path(path).exists():
+            text = Path(path).read_text(encoding="utf-8")
+        prefix = str(check.get("name") or "contract").lower()
+        for error in check.get("errors", []):
+            message = str(error)
+            annotations.append(
+                GithubAnnotation(
+                    file=path or None,
+                    line=line_for_error(text, message),
+                    title=f"homelab-operator/{annotation_rule_id(message, prefix)}",
+                    message=message,
+                )
+            )
+    return annotations
 
 
 def cmd_check_privacy(args: argparse.Namespace) -> int:
     payload = privacy_payload(Path(args.root), args.privacy_config)
+    if args.github_annotations and not payload["ok"]:
+        emit_github_annotations(privacy_github_annotations(payload))
     if args.json:
         print_json(payload)
         return 0 if payload["ok"] else 1
@@ -212,6 +425,8 @@ def doctor_payload(root: Path, config_file: str | None = None) -> dict[str, Any]
 def cmd_doctor(args: argparse.Namespace) -> int:
     root = Path(args.root)
     payload = doctor_payload(root, args.privacy_config)
+    if args.github_annotations and not payload["ok"]:
+        emit_github_annotations(doctor_github_annotations(payload))
     if args.json:
         print_json(payload)
         return 0 if payload["ok"] else 1
@@ -271,6 +486,7 @@ def build_parser() -> argparse.ArgumentParser:
     check_pr.add_argument("--body-file", help="Markdown PR body. Defaults to stdin.")
     check_pr.add_argument("--write-owned-paths", help="Write extracted owned paths to a file.")
     check_pr.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_pr.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     check_pr.set_defaults(func=cmd_check_pr)
 
     receipt = subparsers.add_parser("receipt-template", help="Print a lane receipt template")
@@ -280,16 +496,19 @@ def build_parser() -> argparse.ArgumentParser:
     check_receipt = subparsers.add_parser("check-receipt", help="Validate a lane receipt")
     check_receipt.add_argument("--file", required=True, help="Markdown receipt file.")
     check_receipt.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_receipt.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     check_receipt.set_defaults(func=cmd_check_receipt)
 
     check_claim = subparsers.add_parser("check-claim", help="Validate a JSON surface claim")
     check_claim.add_argument("--json-file", required=True, help="JSON surface claim file.")
     check_claim.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_claim.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     check_claim.set_defaults(func=cmd_check_claim)
 
     check_estate = subparsers.add_parser("check-estate", help="Validate a simple estate YAML file")
     check_estate.add_argument("--file", required=True, help="Estate YAML file.")
     check_estate.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_estate.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     check_estate.set_defaults(func=cmd_check_estate)
 
     check_privacy = subparsers.add_parser("check-privacy", help="Scan text files for private operational material")
@@ -299,6 +518,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Additional TOML privacy deny rules. Defaults to {DEFAULT_PRIVACY_CONFIG} under --root when present.",
     )
     check_privacy.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_privacy.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     check_privacy.set_defaults(func=cmd_check_privacy)
 
     doctor = subparsers.add_parser("doctor", help="Run the built-in project contract checks")
@@ -308,6 +528,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Additional TOML privacy deny rules. Defaults to {DEFAULT_PRIVACY_CONFIG} under --root when present.",
     )
     doctor.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    doctor.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     doctor.set_defaults(func=cmd_doctor)
 
     init = subparsers.add_parser("init", help="Install Homelab Operator templates into a repo")

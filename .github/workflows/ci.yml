@@ -18,8 +18,8 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install -e ".[dev]"
       - run: python -m pytest
-      - run: homelab-operator check-pr --body-file tests/fixtures/good_pr_body.md
-      - run: homelab-operator check-receipt --file tests/fixtures/good_receipt.md
-      - run: homelab-operator check-claim --json-file tests/fixtures/surface_claim.json
-      - run: homelab-operator check-estate --file examples/minimal-homelab/estate.yaml
-      - run: homelab-operator doctor --root .
+      - run: homelab-operator check-pr --body-file tests/fixtures/good_pr_body.md --github-annotations
+      - run: homelab-operator check-receipt --file tests/fixtures/good_receipt.md --github-annotations
+      - run: homelab-operator check-claim --json-file tests/fixtures/surface_claim.json --github-annotations
+      - run: homelab-operator check-estate --file examples/minimal-homelab/estate.yaml --github-annotations
+      - run: homelab-operator doctor --root . --github-annotations

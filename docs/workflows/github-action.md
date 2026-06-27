@@ -43,6 +43,16 @@ The workflow uses read-only permissions and does not persist the GitHub token
 in the checkout. It writes the PR body to `$RUNNER_TEMP/pr-body.md` through
 JSON decoding so Markdown content is not interpreted by the shell.
 
+When the installed Homelab Operator version supports annotation output, a
+source-only PR gate can emit GitHub Actions annotations directly:
+
+```yaml
+- name: Validate PR body
+  run: homelab-operator check-pr --body-file "$RUNNER_TEMP/pr-body.md" --github-annotations
+- name: Scan checked-out files for private material
+  run: homelab-operator check-privacy --root . --github-annotations
+```
+
 For branch protection, require the `Validate PR body and privacy` job alongside
 the repository's normal CI job. Do not replace test, build, or lint gates with
 this Action.

@@ -36,6 +36,43 @@ def test_check_pr_text_output_is_unchanged_by_default(capsys) -> None:
     assert captured.err == ""
 
 
+def test_check_pr_github_annotations_point_to_validation_section(tmp_path: Path, capsys) -> None:
+    body = tmp_path / "pr-body.md"
+    body.write_text(
+        """## Summary
+
+Add a synthetic source-only check.
+
+## Linked Issues
+
+Refs #2
+
+## Owned Paths
+
+- `src/homelab_operator/cli.py`
+
+## Validation
+
+Not supplied.
+
+## Claim Boundary
+
+Proof kind: repo_only
+""",
+        encoding="utf-8",
+    )
+
+    code = main(["check-pr", "--body-file", str(body), "--github-annotations"])
+    captured = capsys.readouterr()
+
+    assert code == 1
+    assert captured.out == ""
+    assert f"file={body}" in captured.err
+    assert "line=13" in captured.err
+    assert "title=homelab-operator/pr.validation-section-must-include" in captured.err
+    assert "Validation section must include commands/results or an explicit blocker" in captured.err
+
+
 def test_check_receipt_json_includes_fields(capsys) -> None:
     code, payload = run_json(capsys, ["check-receipt", "--file", str(FIXTURES / "good_receipt.md"), "--json"])
 
@@ -92,6 +129,25 @@ def test_check_privacy_json_reports_failures_without_stderr(tmp_path: Path, caps
     assert payload["privacy_config"] is None
     assert payload["custom_privacy_rules"] == 0
     assert any("Privacy scan matched" in error for error in payload["errors"])
+
+
+def test_check_privacy_github_annotations_include_line_and_rule_without_leaking_match(
+    tmp_path: Path, capsys
+) -> None:
+    sample = tmp_path / "sample.txt"
+    field_name = "api" + "_key"
+    sample.write_text(f"safe line\n{field_name}: synthetic-placeholder\n", encoding="utf-8")
+
+    code = main(["check-privacy", "--root", str(tmp_path), "--github-annotations"])
+    captured = capsys.readouterr()
+
+    assert code == 1
+    assert captured.out == ""
+    assert f"file={sample}" in captured.err
+    assert "line=2" in captured.err
+    assert "title=homelab-operator/builtin.credential-assignment" in captured.err
+    assert "Privacy scan matched rule `builtin.credential-assignment`: Credential-like assignment" in captured.err
+    assert "synthetic-placeholder" not in captured.err
 
 
 def test_doctor_json_includes_nested_checks(capsys) -> None:
