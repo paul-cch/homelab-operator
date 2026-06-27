@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from homelab_operator.contracts import PrivacyConfigError, load_privacy_config, scan_privacy
+from homelab_operator.contracts import PrivacyConfigError, load_privacy_config, scan_privacy, scan_privacy_findings
 
 
 def dotted(*octets: int) -> str:
@@ -175,6 +175,29 @@ pattern = '(a+)+$'
     assert scan_privacy("literal text contains (a+)+$", rules).errors == (
         "Privacy scan matched rule `synthetic.literal`: Synthetic literal marker",
     )
+
+
+def test_privacy_config_multiline_literals_match_whole_text(tmp_path) -> None:
+    config = tmp_path / ".homelab-operator-privacy.toml"
+    config.write_text(
+        """[privacy]
+[[privacy.deny_patterns]]
+id = "synthetic.multiline"
+description = "Synthetic multiline marker"
+pattern = '''BEGIN
+SECRET'''
+""",
+        encoding="utf-8",
+    )
+
+    rules = load_privacy_config(config)
+    text = "safe line\nBEGIN\nSECRET\nsafe line\n"
+    result = scan_privacy(text, rules)
+    findings = scan_privacy_findings(text, rules)
+
+    assert result.errors == ("Privacy scan matched rule `synthetic.multiline`: Synthetic multiline marker",)
+    assert len(findings) == 1
+    assert findings[0].line == 2
 
 
 def test_privacy_config_rejects_malformed_shape(tmp_path) -> None:

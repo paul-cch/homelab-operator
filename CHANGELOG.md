@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add GitHub Actions annotation output for contract and privacy failures.
 - Add JSON output for validation commands and `doctor`.
 - Add configurable extra privacy deny patterns while preserving built-in checks.
 - Add opt-in `pre-commit` hooks for local privacy and contract checks.

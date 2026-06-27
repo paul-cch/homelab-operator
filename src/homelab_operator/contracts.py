@@ -146,6 +146,13 @@ class ContractResult:
 
 
 @dataclass(frozen=True)
+class PrivacyFinding:
+    line: int
+    rule_id: str
+    description: str
+
+
+@dataclass(frozen=True)
 class ReceiptResult:
     errors: tuple[str, ...]
     warnings: tuple[str, ...]
@@ -169,6 +176,10 @@ class EstateResult:
 
 def privacy_match_error(rule: PrivacyRule) -> str:
     return f"Privacy scan matched rule `{rule.rule_id}`: {rule.description}"
+
+
+def privacy_finding_error(finding: PrivacyFinding) -> str:
+    return f"Privacy scan matched rule `{finding.rule_id}`: {finding.description}"
 
 
 def load_privacy_config(path: Path) -> tuple[PrivacyRule, ...]:
@@ -427,12 +438,46 @@ def evaluate_estate(payload: str) -> EstateResult:
     return EstateResult(errors=tuple(errors), warnings=tuple(warnings), surfaces=tuple(surfaces))
 
 
+def line_for_offset(text: str, offset: int) -> int:
+    return text.count("\n", 0, offset) + 1
+
+
+def rule_match_offsets(text: str, rule: PrivacyRule) -> tuple[int, ...]:
+    if rule.literal is not None:
+        if not rule.literal:
+            return ()
+        offsets: list[int] = []
+        start = 0
+        while True:
+            index = text.find(rule.literal, start)
+            if index < 0:
+                return tuple(offsets)
+            offsets.append(index)
+            start = index + len(rule.literal)
+
+    if rule.pattern is None:
+        return ()
+    return tuple(match.start() for match in rule.pattern.finditer(text))
+
+
+def scan_privacy_findings(text: str, extra_rules: tuple[PrivacyRule, ...] = ()) -> tuple[PrivacyFinding, ...]:
+    findings: list[PrivacyFinding] = []
+    for rule in (*BUILTIN_PRIVACY_RULES, *extra_rules):
+        for offset in rule_match_offsets(text, rule):
+            findings.append(
+                PrivacyFinding(line=line_for_offset(text, offset), rule_id=rule.rule_id, description=rule.description)
+            )
+    return tuple(findings)
+
+
 def scan_privacy(text: str, extra_rules: tuple[PrivacyRule, ...] = ()) -> ContractResult:
-    errors = [
-        privacy_match_error(rule)
-        for rule in (*BUILTIN_PRIVACY_RULES, *extra_rules)
-        if rule.matches(text)
-    ]
+    errors: list[str] = []
+    seen_rules: set[str] = set()
+    for finding in scan_privacy_findings(text, extra_rules):
+        if finding.rule_id in seen_rules:
+            continue
+        seen_rules.add(finding.rule_id)
+        errors.append(privacy_finding_error(finding))
     return ContractResult(errors=tuple(errors), warnings=(), owned_paths=())
 
 
