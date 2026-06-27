@@ -41,6 +41,9 @@ homelab-operator check-privacy --root .
 git diff --check
 ```
 
+Optional local `pre-commit` hooks can run the privacy scan and project doctor
+before commits; see [Pre-commit hooks](docs/workflows/pre-commit-hooks.md).
+
 PRs should describe what was proven and what was not proven. For source-only
 or docs-only changes, use a claim boundary like:
 

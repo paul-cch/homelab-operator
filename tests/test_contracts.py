@@ -19,6 +19,7 @@ from homelab_operator.contracts import (
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SCHEMAS = Path(__file__).parents[1] / "schemas"
+HOOKS = Path(__file__).parents[1] / ".pre-commit-hooks.yaml"
 
 RECEIPT_SCHEMA_KEYS = {
     "Exit state": "exit_state",
@@ -252,4 +253,17 @@ def test_init_writes_templates(tmp_path: Path) -> None:
 
 
 def test_doctor_passes_for_repo() -> None:
+    assert main(["doctor", "--root", "."]) == 0
+
+
+def test_pre_commit_hooks_target_supported_cli_commands() -> None:
+    hooks = HOOKS.read_text(encoding="utf-8")
+
+    assert "id: homelab-operator-check-privacy" in hooks
+    assert "entry: homelab-operator check-privacy --root ." in hooks
+    assert "id: homelab-operator-doctor" in hooks
+    assert "entry: homelab-operator doctor --root ." in hooks
+    assert hooks.count("pass_filenames: false") == 2
+
+    assert main(["check-privacy", "--root", "."]) == 0
     assert main(["doctor", "--root", "."]) == 0

@@ -189,6 +189,7 @@ Existing files are skipped unless `--force` is passed.
 - [Claim boundaries](docs/concepts/claim-boundaries.md)
 - [Privacy model](docs/concepts/privacy.md)
 - [GitHub Action workflow](docs/workflows/github-action.md)
+- [Pre-commit hooks](docs/workflows/pre-commit-hooks.md)
 - [Source change workflow](docs/workflows/source-change.md)
 - [Deploy handoff workflow](docs/workflows/deploy-handoff.md)
 - [Watcher automation workflow](docs/workflows/watcher-automation.md)
