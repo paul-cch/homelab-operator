@@ -1,0 +1,15 @@
+- id: homelab-operator-check-privacy
+  name: Homelab Operator privacy scan
+  description: Scan repository text for private operational material.
+  entry: homelab-operator check-privacy --root .
+  language: python
+  pass_filenames: false
+  types_or: [file]
+
+- id: homelab-operator-doctor
+  name: Homelab Operator doctor
+  description: Run bundled Homelab Operator contract and privacy checks.
+  entry: homelab-operator doctor --root .
+  language: python
+  pass_filenames: false
+  types_or: [file]

@@ -15,6 +15,7 @@ workflow docs as operational templates.
 ## Workflows
 
 - [GitHub Action](workflows/github-action.md)
+- [Pre-commit hooks](workflows/pre-commit-hooks.md)
 - [Source change](workflows/source-change.md)
 - [Deploy handoff](workflows/deploy-handoff.md)
 - [Watcher automation](workflows/watcher-automation.md)
