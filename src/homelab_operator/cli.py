@@ -11,10 +11,12 @@ from typing import Any
 
 from .contracts import (
     ExitState,
+    PrivacyConfigError,
     evaluate_estate,
     evaluate_pr_body,
     evaluate_receipt,
     evaluate_surface_claim,
+    load_privacy_config,
     receipt_template,
     scan_privacy,
 )
@@ -22,6 +24,7 @@ from .scaffold import INIT_FILES
 
 
 SKIP_DIRS = {".git", ".venv", ".pytest_cache", ".ruff_cache", "build", "dist", "__pycache__"}
+DEFAULT_PRIVACY_CONFIG = ".homelab-operator-privacy.toml"
 
 
 def read_text(path: str | None) -> str:
@@ -105,27 +108,52 @@ def iter_text_files(root: Path) -> list[Path]:
     return sorted(paths)
 
 
-def privacy_payload(root: Path) -> dict[str, Any]:
+def privacy_config_path(root: Path, config_file: str | None) -> Path | None:
+    if config_file:
+        path = Path(config_file)
+        return path if path.is_absolute() else root / path
+    default_path = root / DEFAULT_PRIVACY_CONFIG
+    return default_path if default_path.exists() else None
+
+
+def privacy_payload(root: Path, config_file: str | None = None) -> dict[str, Any]:
     errors: list[str] = []
     files_scanned = 0
+    config_path = privacy_config_path(root, config_file)
+    resolved_config_path = config_path.resolve() if config_path else None
+    try:
+        extra_rules = load_privacy_config(config_path) if config_path else ()
+    except PrivacyConfigError as exc:
+        return {
+            "ok": False,
+            "errors": [str(exc)],
+            "warnings": [],
+            "files_scanned": 0,
+            "privacy_config": str(config_path),
+            "custom_privacy_rules": 0,
+        }
+
     for path in iter_text_files(root):
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
         files_scanned += 1
-        result = scan_privacy(text)
+        rules = () if resolved_config_path and path.resolve() == resolved_config_path else extra_rules
+        result = scan_privacy(text, rules)
         errors.extend(f"{path}: {error}" for error in result.errors)
     return {
         "ok": not errors,
         "errors": errors,
         "warnings": [],
         "files_scanned": files_scanned,
+        "privacy_config": str(config_path) if config_path else None,
+        "custom_privacy_rules": len(extra_rules),
     }
 
 
 def cmd_check_privacy(args: argparse.Namespace) -> int:
-    payload = privacy_payload(Path(args.root))
+    payload = privacy_payload(Path(args.root), args.privacy_config)
     if args.json:
         print_json(payload)
         return 0 if payload["ok"] else 1
@@ -137,7 +165,7 @@ def cmd_check_privacy(args: argparse.Namespace) -> int:
     return 0
 
 
-def doctor_payload(root: Path) -> dict[str, Any]:
+def doctor_payload(root: Path, config_file: str | None = None) -> dict[str, Any]:
     checks = [
         ("PR", root / "tests/fixtures/good_pr_body.md", evaluate_pr_body, "PR_CONTRACT_OK", ("owned_paths",)),
         ("receipt", root / "tests/fixtures/good_receipt.md", evaluate_receipt, "RECEIPT_CONTRACT_OK", ("fields",)),
@@ -167,7 +195,7 @@ def doctor_payload(root: Path) -> dict[str, Any]:
         warnings.extend(f"{path}: {warning}" for warning in result.warnings)
         check_payloads.append(check_payload)
 
-    privacy_check = privacy_payload(root)
+    privacy_check = privacy_payload(root, config_file)
     privacy_check.update({"name": "privacy", "ok_message": "PRIVACY_SCAN_OK"})
     check_payloads.append(privacy_check)
     errors.extend(str(error) for error in privacy_check["errors"])
@@ -183,7 +211,7 @@ def doctor_payload(root: Path) -> dict[str, Any]:
 
 def cmd_doctor(args: argparse.Namespace) -> int:
     root = Path(args.root)
-    payload = doctor_payload(root)
+    payload = doctor_payload(root, args.privacy_config)
     if args.json:
         print_json(payload)
         return 0 if payload["ok"] else 1
@@ -266,11 +294,19 @@ def build_parser() -> argparse.ArgumentParser:
 
     check_privacy = subparsers.add_parser("check-privacy", help="Scan text files for private operational material")
     check_privacy.add_argument("--root", default=".", help="Repository root to scan.")
+    check_privacy.add_argument(
+        "--privacy-config",
+        help=f"Additional TOML privacy deny rules. Defaults to {DEFAULT_PRIVACY_CONFIG} under --root when present.",
+    )
     check_privacy.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     check_privacy.set_defaults(func=cmd_check_privacy)
 
     doctor = subparsers.add_parser("doctor", help="Run the built-in project contract checks")
     doctor.add_argument("--root", default=".", help="Repository root to check.")
+    doctor.add_argument(
+        "--privacy-config",
+        help=f"Additional TOML privacy deny rules. Defaults to {DEFAULT_PRIVACY_CONFIG} under --root when present.",
+    )
     doctor.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     doctor.set_defaults(func=cmd_doctor)
 

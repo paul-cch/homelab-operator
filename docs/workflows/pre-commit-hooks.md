@@ -50,6 +50,9 @@ It scans UTF-8 text files under the repository root, skipping `.git`, `.venv`,
 binary or non-UTF-8 files. The built-in patterns catch private IP addresses,
 credential assignments, and private key blocks.
 
+If `.homelab-operator-privacy.toml` exists at the repository root, the hook also
+loads its additional deny rules. Built-in checks still run.
+
 `homelab-operator-doctor` runs:
 
 ```bash
@@ -58,8 +61,9 @@ homelab-operator doctor --root .
 
 It validates the bundled PR, receipt, claim, estate, and privacy fixtures. Use
 it for this repository or repositories that carry the Homelab Operator fixture
-layout. For a repository that only wants leak detection, enable the privacy hook
-alone.
+layout. It also honors `.homelab-operator-privacy.toml` during the nested
+privacy scan. For a repository that only wants leak detection, enable the
+privacy hook alone.
 
 ## Proof Boundary
 
