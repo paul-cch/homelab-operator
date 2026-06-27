@@ -3,6 +3,10 @@
 [![CI](https://github.com/paul-cch/homelab-operator/actions/workflows/ci.yml/badge.svg)](https://github.com/paul-cch/homelab-operator/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/paul-cch/homelab-operator)](https://github.com/paul-cch/homelab-operator/releases)
+[![Security Policy](https://img.shields.io/badge/security-policy-green)](SECURITY.md)
+
+Stop AI agents from confusing "tests passed" with "the homelab is fixed."
 
 Homelab Operator is a privacy-safe contract checker for AI-assisted
 infrastructure PRs.
@@ -12,6 +16,10 @@ boundaries: a local source check can prove repo coherence, but it cannot prove
 host checkout, runtime export, live config, or external service health. The CLI
 validates PR bodies, lane receipts, JSON surface claims, synthetic estate
 examples, and privacy scans so every handoff says what was and was not verified.
+
+The project is intentionally boring: templates, schemas, receipts, and a small
+Python CLI that makes agents say what they changed, what they verified, what
+they did not verify, and the next safe handoff.
 
 ## Try It In 2 Minutes
 
@@ -90,10 +98,40 @@ prove source coherence; it cannot prove a host pulled the change, a runtime was
 exported, or a live service is healthy.
 
 Homelab Operator gives maintainers a reusable proof vocabulary and CI checks so
-agent-authored work stays reviewable. The project is intentionally boring:
-templates, schemas, receipts, and a small Python CLI that makes agents say what
-they changed, what they verified, what they did not verify, and the next safe
-handoff.
+agent-authored work stays reviewable.
+
+## The problem
+
+An agent can edit a compose file, pass local tests, and still be wrong about
+whether:
+
+- the host pulled the commit
+- the runtime was exported or restarted
+- live config changed
+- an external service is healthy
+- the PR actually proves end-to-end success
+
+Homelab Operator turns those claims into checkable receipts.
+
+## Install
+
+Install the published CLI with `pipx` when it is available from PyPI:
+
+```bash
+pipx install homelab-operator
+```
+
+Today, install directly from GitHub:
+
+```bash
+pipx install git+https://github.com/paul-cch/homelab-operator.git
+```
+
+For local development:
+
+```bash
+python -m pip install -e ".[dev]"
+```
 
 ## More Local Checks
 
@@ -120,6 +158,40 @@ SURFACE_CLAIM_OK
 ESTATE_CONTRACT_OK
 HOMELAB_OPERATOR_DOCTOR_OK
 ```
+
+## Two-minute demo
+
+The smallest useful demo is one bad claim, one good claim, and the project
+doctor:
+
+```bash
+homelab-operator check-pr --body-file tests/fixtures/bad_pr_body_missing_boundary.md || true
+homelab-operator check-pr --body-file tests/fixtures/good_pr_body.md
+homelab-operator receipt-template --state MERGE_READY
+homelab-operator check-receipt --file examples/minimal-homelab/receipts/source-change.md
+homelab-operator check-claim --json-file examples/assistant-runtime/surface-claim.json
+homelab-operator check-estate --file examples/minimal-homelab/estate.yaml
+homelab-operator doctor --root .
+```
+
+The failing PR body proves the point: validation without a claim boundary is not
+enough. The passing path ends with:
+
+```text
+HOMELAB_OPERATOR_DOCTOR_OK
+```
+
+See [the adoption demo](examples/adoption-demo/README.md) for the full synthetic
+walkthrough.
+
+## Use cases
+
+- homelab and self-hosted maintenance repos
+- small infrastructure and platform repositories
+- agent-maintained runbooks
+- source-only PR review
+- deploy handoffs where runtime proof is still missing
+- watcher automations that need clean no-op receipts
 
 ## Proof ladder
 
@@ -185,6 +257,8 @@ Existing files are skipped unless `--force` is passed.
 
 - [Demo walkthrough](docs/demo.md)
 - [Shareable demo asset](docs/assets/demo-terminal.svg)
+- [Start here for agents](docs/agents/start-here.md)
+- [Prompt recipes](docs/agents/prompt-recipes.md)
 - [Proof ladder](docs/concepts/proof-ladder.md)
 - [Command reference](docs/commands.md)
 - [Claim boundaries](docs/concepts/claim-boundaries.md)
@@ -229,3 +303,6 @@ Released as `v1.0.0`. The stable command surface includes:
 - synthetic example estates
 - GitHub Actions integration
 - docs for source-only, handoff, no-op, and blocked lanes
+
+Project hygiene: [license](LICENSE), [security policy](SECURITY.md),
+[contributing guide](CONTRIBUTING.md), and [code of conduct](CODE_OF_CONDUCT.md).

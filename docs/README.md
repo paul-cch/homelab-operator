@@ -12,6 +12,11 @@ workflow docs as operational templates.
 - [Demo walkthrough](demo.md)
 - [Essay: Source tests are not runtime proof](essays/source-tests-are-not-runtime-proof.md)
 
+## Agents
+
+- [Start here](agents/start-here.md)
+- [Prompt recipes](agents/prompt-recipes.md)
+
 ## Workflows
 
 - [GitHub Action](workflows/github-action.md)

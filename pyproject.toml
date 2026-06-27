@@ -13,12 +13,18 @@ authors = [
   { name = "Paul Couach" }
 ]
 keywords = [
+  "ai-operations",
   "agents",
+  "ci",
   "codex",
+  "devops",
   "homelab",
   "infrastructure",
   "maintenance",
   "operations",
+  "platform-engineering",
+  "runbooks",
+  "sre",
 ]
 classifiers = [
   "Development Status :: 5 - Production/Stable",
