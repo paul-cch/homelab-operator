@@ -92,6 +92,10 @@ BARE_CLOSING_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(?
 PARTIAL_WORK_RE = re.compile(r"\b(first|remaining|partial|slice|part of|follow-up|coordinator|later|not close|refs?)\b", re.I)
 COMMAND_RE = re.compile(r"`[^`]+`|\b(?:python|pytest|ruff|mypy|git |bash |shellcheck |npm |pnpm |cargo |go test)\b")
 PRIVACY_RULE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,63}$")
+ESTATE_TOP_LEVEL_KEYS = {"name", "surfaces", "flows"}
+ESTATE_SURFACE_KEYS = {"id", "kind", "authority", "owner", "description", "handoff", "services"}
+ESTATE_SERVICE_KEYS = {"id", "owner", "purpose", "proof_required", "handoff"}
+ESTATE_FLOW_KEYS = {"from", "to", "proof_required", "intent", "handoff"}
 
 
 @dataclass(frozen=True)
@@ -342,60 +346,218 @@ def evaluate_surface_claim(payload: str) -> ContractResult:
     return ContractResult(errors=tuple(errors), warnings=(), owned_paths=())
 
 
-def evaluate_estate(payload: str) -> EstateResult:
-    """Validate the simple YAML subset used by Homelab Operator examples."""
+def split_estate_field(line: str) -> tuple[str, str] | None:
+    if ":" not in line:
+        return None
+    key, value = line.split(":", 1)
+    return key.strip(), value.strip()
 
+
+def estate_record_label(record: dict[str, object], fallback: str = "<unknown>") -> str:
+    value = record.get("id", "")
+    return str(value) if value else fallback
+
+
+def add_estate_field(
+    record: dict[str, object],
+    key: str,
+    value: str,
+    allowed_keys: set[str],
+    context: str,
+    errors: list[str],
+) -> None:
+    if key not in allowed_keys:
+        errors.append(f"{context} has unsupported field `{key}`")
+        return
+    record[key] = value
+
+
+def parse_estate_subset(payload: str) -> tuple[list[str], list[dict[str, object]], list[dict[str, object]], bool, bool]:
     errors: list[str] = []
-    warnings: list[str] = []
-    surface_records: list[dict[str, str]] = []
-    flow_records: list[dict[str, str]] = []
-    current_record: dict[str, str] | None = None
+    surface_records: list[dict[str, object]] = []
+    flow_records: list[dict[str, object]] = []
     current_section: str | None = None
+    current_surface: dict[str, object] | None = None
+    current_flow: dict[str, object] | None = None
+    current_service: dict[str, object] | None = None
     name_seen = False
     flows_seen = False
 
     for raw in payload.splitlines():
+        if not raw.strip() or raw.lstrip().startswith("#"):
+            continue
+
+        indent = len(raw) - len(raw.lstrip(" "))
         line = raw.strip()
-        if not line or line.startswith("#"):
+
+        if indent == 0:
+            current_surface = None
+            current_flow = None
+            current_service = None
+            parsed = split_estate_field(line)
+            if parsed is None:
+                errors.append(f"Estate has unsupported top-level line `{line}`")
+                continue
+            key, value = parsed
+            if key not in ESTATE_TOP_LEVEL_KEYS:
+                errors.append(f"Estate has unsupported top-level field `{key}`")
+                continue
+            if key == "name":
+                name_seen = True
+                if not value:
+                    errors.append("Estate must define non-empty name")
+            elif key == "surfaces":
+                if value:
+                    errors.append("Estate `surfaces` must be a nested list")
+                current_section = "surfaces"
+            elif key == "flows":
+                if value:
+                    errors.append("Estate `flows` must be a nested list")
+                flows_seen = True
+                current_section = "flows"
             continue
-        if line.startswith("name:"):
-            name_seen = True
-            if not line.split(":", 1)[1].strip():
-                errors.append("Estate must define non-empty name")
+
+        if current_section == "surfaces":
+            if indent == 2 and line.startswith("- "):
+                current_surface = {}
+                current_service = None
+                surface_records.append(current_surface)
+                parsed = split_estate_field(line[2:].strip())
+                if parsed is None:
+                    errors.append("Estate surface list item must include `key: value`")
+                    continue
+                key, value = parsed
+                if key == "services":
+                    if value:
+                        errors.append("Estate surface `<unknown>` field `services` must be a nested list")
+                    current_surface["services"] = []
+                    continue
+                add_estate_field(current_surface, key, value, ESTATE_SURFACE_KEYS, "Estate surface `<unknown>`", errors)
+                continue
+
+            if current_surface is None:
+                errors.append("Estate surface field appears before a surface list item")
+                continue
+
+            surface_label = estate_record_label(current_surface)
+            if indent == 4:
+                parsed = split_estate_field(line)
+                if parsed is None:
+                    errors.append(f"Estate surface `{surface_label}` has unsupported line `{line}`")
+                    continue
+                key, value = parsed
+                if key == "services":
+                    if value:
+                        errors.append(f"Estate surface `{surface_label}` field `services` must be a nested list")
+                    current_surface["services"] = []
+                    current_service = None
+                    continue
+                add_estate_field(
+                    current_surface,
+                    key,
+                    value,
+                    ESTATE_SURFACE_KEYS,
+                    f"Estate surface `{surface_label}`",
+                    errors,
+                )
+                continue
+
+            if indent == 6 and line.startswith("- "):
+                services = current_surface.get("services")
+                if not isinstance(services, list):
+                    errors.append(f"Estate surface `{surface_label}` field `services` must be a nested list")
+                    continue
+                current_service = {}
+                services.append(current_service)
+                parsed = split_estate_field(line[2:].strip())
+                if parsed is None:
+                    errors.append(f"Estate service on surface `{surface_label}` must include `key: value`")
+                    continue
+                key, value = parsed
+                add_estate_field(
+                    current_service,
+                    key,
+                    value,
+                    ESTATE_SERVICE_KEYS,
+                    f"Estate service `<unknown>` on surface `{surface_label}`",
+                    errors,
+                )
+                continue
+
+            if indent == 8 and current_service is not None:
+                service_label = estate_record_label(current_service)
+                parsed = split_estate_field(line)
+                if parsed is None:
+                    errors.append(f"Estate service `{service_label}` on surface `{surface_label}` has unsupported line `{line}`")
+                    continue
+                key, value = parsed
+                add_estate_field(
+                    current_service,
+                    key,
+                    value,
+                    ESTATE_SERVICE_KEYS,
+                    f"Estate service `{service_label}` on surface `{surface_label}`",
+                    errors,
+                )
+                continue
+
+            errors.append(f"Estate surface `{surface_label}` has unsupported nested line `{line}`")
             continue
-        if line == "surfaces:":
-            current_section = "surfaces"
-            current_record = None
+
+        if current_section == "flows":
+            if indent == 2 and line.startswith("- "):
+                current_flow = {}
+                flow_records.append(current_flow)
+                parsed = split_estate_field(line[2:].strip())
+                if parsed is None:
+                    errors.append("Estate flow list item must include `key: value`")
+                    continue
+                key, value = parsed
+                add_estate_field(current_flow, key, value, ESTATE_FLOW_KEYS, "Estate flow `<unknown>`", errors)
+                continue
+
+            if indent == 4 and current_flow is not None:
+                parsed = split_estate_field(line)
+                if parsed is None:
+                    errors.append(f"Estate flow has unsupported line `{line}`")
+                    continue
+                key, value = parsed
+                source = str(current_flow.get("from", "<unknown>") or "<unknown>")
+                target = str(current_flow.get("to", "<unknown>") or "<unknown>")
+                add_estate_field(
+                    current_flow,
+                    key,
+                    value,
+                    ESTATE_FLOW_KEYS,
+                    f"Estate flow from `{source}` to `{target}`",
+                    errors,
+                )
+                continue
+
+            errors.append(f"Estate flow has unsupported nested line `{line}`")
             continue
-        if line == "flows:":
-            flows_seen = True
-            current_section = "flows"
-            current_record = None
-            continue
-        if line.startswith("- "):
-            if current_section == "surfaces":
-                current_record = {}
-                surface_records.append(current_record)
-            elif current_section == "flows":
-                current_record = {}
-                flow_records.append(current_record)
-            else:
-                current_record = None
-            line = line[2:].strip()
-        if current_record is not None and ":" in line:
-            key, value = line.split(":", 1)
-            current_record[key.strip()] = value.strip()
+
+        errors.append(f"Estate field appears outside `surfaces` or `flows`: `{line}`")
+
+    return errors, surface_records, flow_records, name_seen, flows_seen
+
+
+def evaluate_estate(payload: str) -> EstateResult:
+    """Validate the supported YAML subset used by Homelab Operator examples."""
+
+    errors, surface_records, flow_records, name_seen, flows_seen = parse_estate_subset(payload)
+    warnings: list[str] = []
 
     surfaces: list[str] = []
     for surface in surface_records:
-        surface_id = surface.get("id", "")
+        surface_id = str(surface.get("id", ""))
         if surface_id:
             surfaces.append(surface_id)
         else:
             errors.append("Estate surface has an empty id")
 
         display_id = surface_id or "<unknown>"
-        surface_kind = surface.get("kind", "")
+        surface_kind = str(surface.get("kind", ""))
         if not surface_kind:
             errors.append(f"Estate surface `{display_id}` must include kind")
         elif surface_kind not in SURFACE_KIND_VALUES:
@@ -403,6 +565,39 @@ def evaluate_estate(payload: str) -> EstateResult:
 
         if not surface.get("authority", ""):
             errors.append(f"Estate surface `{display_id}` must include authority")
+
+        for optional_field in ("owner", "description", "handoff"):
+            if optional_field in surface and not str(surface[optional_field]).strip():
+                errors.append(f"Estate surface `{display_id}` has empty {optional_field}")
+
+        services = surface.get("services", [])
+        if isinstance(services, list):
+            if "services" in surface and not services:
+                warnings.append(f"Estate surface `{display_id}` defines no services")
+            for service in services:
+                if not isinstance(service, dict):
+                    continue
+                service_id = str(service.get("id", ""))
+                service_label = service_id or "<unknown>"
+                if not service_id:
+                    errors.append(f"Estate service on surface `{display_id}` has an empty id")
+                if not str(service.get("owner", "")).strip():
+                    errors.append(f"Estate service `{service_label}` on surface `{display_id}` must include owner")
+                proof_required = str(service.get("proof_required", ""))
+                if not proof_required:
+                    errors.append(
+                        f"Estate service `{service_label}` on surface `{display_id}` must include proof_required"
+                    )
+                elif proof_required not in PROOF_KIND_VALUES:
+                    errors.append(
+                        f"Estate service `{service_label}` on surface `{display_id}` "
+                        f"has unknown proof_required `{proof_required}`"
+                    )
+                for optional_field in ("purpose", "handoff"):
+                    if optional_field in service and not str(service[optional_field]).strip():
+                        errors.append(
+                            f"Estate service `{service_label}` on surface `{display_id}` has empty {optional_field}"
+                        )
 
     if not name_seen:
         errors.append("Estate must define non-empty name")
@@ -412,9 +607,9 @@ def evaluate_estate(payload: str) -> EstateResult:
 
     known_surfaces = set(surfaces)
     for flow in flow_records:
-        source = flow.get("from", "")
-        target = flow.get("to", "")
-        proof_required = flow.get("proof_required", "")
+        source = str(flow.get("from", ""))
+        target = str(flow.get("to", ""))
+        proof_required = str(flow.get("proof_required", ""))
 
         if not source:
             errors.append("Estate flow has an empty source surface")
@@ -429,6 +624,10 @@ def evaluate_estate(payload: str) -> EstateResult:
             errors.append(f"Estate flow from `{source}` to `{target}` must include proof_required")
         elif proof_required not in PROOF_KIND_VALUES:
             errors.append(f"Estate flow from `{source}` to `{target}` has unknown proof_required `{proof_required}`")
+
+        for optional_field in ("intent", "handoff"):
+            if optional_field in flow and not str(flow[optional_field]).strip():
+                errors.append(f"Estate flow from `{source}` to `{target}` has empty {optional_field}")
 
     if not flows_seen:
         errors.append("Estate must define flows section")

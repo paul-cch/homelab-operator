@@ -170,6 +170,13 @@ def test_estate_passes() -> None:
     assert set(result.surfaces) == {"source", "host", "runtime", "live-config"}
 
 
+def test_richer_estate_passes() -> None:
+    result = evaluate_estate(Path("examples/richer-homelab/estate.yaml").read_text(encoding="utf-8"))
+
+    assert result.ok
+    assert set(result.surfaces) == {"source", "coordination", "runtime-export"}
+
+
 def test_estate_rejects_unknown_flow_target() -> None:
     result = evaluate_estate(
         """name: bad
@@ -223,13 +230,110 @@ flows:
     assert "Estate flow from `source` to `runtime` has unknown proof_required `runtime`" in result.errors
 
 
+def test_estate_rejects_unsupported_surface_service_and_flow_fields() -> None:
+    result = evaluate_estate(
+        """name: bad
+surfaces:
+  - id: source
+    kind: repo
+    authority: synthetic-source
+    endpoint: synthetic-endpoint
+    services:
+      - id: checker
+        owner: synthetic-team
+        purpose: Validate synthetic fixtures
+        proof_required: repo_only
+        endpoint: synthetic-service
+flows:
+  - from: source
+    to: source
+    proof_required: repo_only
+    port: synthetic-port
+"""
+    )
+
+    assert not result.ok
+    assert "Estate surface `source` has unsupported field `endpoint`" in result.errors
+    assert "Estate service `checker` on surface `source` has unsupported field `endpoint`" in result.errors
+    assert "Estate flow from `source` to `source` has unsupported field `port`" in result.errors
+
+
+def test_estate_rejects_invalid_service_fields() -> None:
+    result = evaluate_estate(
+        """name: bad
+surfaces:
+  - id: source
+    kind: repo
+    authority: synthetic-source
+    services:
+      - id: checker
+        purpose: Validate synthetic fixtures
+        proof_required: runtime
+flows:
+  - from: source
+    to: source
+    proof_required: repo_only
+"""
+    )
+
+    assert not result.ok
+    assert "Estate service `checker` on surface `source` must include owner" in result.errors
+    assert "Estate service `checker` on surface `source` has unknown proof_required `runtime`" in result.errors
+
+
+def test_estate_rejects_scalar_services_on_surface_item_line() -> None:
+    result = evaluate_estate(
+        """name: bad
+surfaces:
+  - services: disabled
+    id: source
+    kind: repo
+    authority: synthetic-source
+flows:
+  - from: source
+    to: source
+    proof_required: repo_only
+"""
+    )
+
+    assert not result.ok
+    assert "Estate surface `<unknown>` field `services` must be a nested list" in result.errors
+
+
+def test_estate_rejects_service_item_without_services_field() -> None:
+    result = evaluate_estate(
+        """name: bad
+surfaces:
+  - id: source
+    kind: repo
+    authority: synthetic-source
+      - id: checker
+        owner: synthetic-team
+        proof_required: repo_only
+flows:
+  - from: source
+    to: source
+    proof_required: repo_only
+"""
+    )
+
+    assert not result.ok
+    assert "Estate surface `source` field `services` must be a nested list" in result.errors
+
+
 def test_estate_schema_enums_match_runtime() -> None:
     schema = load_schema("estate.schema.json")
     surface_properties = schema["properties"]["surfaces"]["items"]["properties"]
+    service_properties = surface_properties["services"]["items"]["properties"]
     flow_properties = schema["properties"]["flows"]["items"]["properties"]
 
     assert surface_properties["kind"]["enum"] == [kind.value for kind in SurfaceKind]
+    assert service_properties["proof_required"]["enum"] == [kind.value for kind in ProofKind]
     assert flow_properties["proof_required"]["enum"] == [kind.value for kind in ProofKind]
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["surfaces"]["items"]["additionalProperties"] is False
+    assert surface_properties["services"]["items"]["additionalProperties"] is False
+    assert schema["properties"]["flows"]["items"]["additionalProperties"] is False
 
 
 def test_privacy_scan_rejects_private_ip() -> None:

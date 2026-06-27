@@ -158,7 +158,7 @@ It also catches common unsafe patterns:
 | `homelab-operator receipt-template` | Print a lane receipt template for an exit state. |
 | `homelab-operator check-receipt` | Validate a Markdown lane receipt. |
 | `homelab-operator check-claim` | Validate a JSON surface claim. |
-| `homelab-operator check-estate` | Validate a simple example estate file. |
+| `homelab-operator check-estate` | Validate a synthetic example estate file. |
 | `homelab-operator check-privacy` | Scan text files for private operational material. |
 | `homelab-operator doctor` | Run the built-in project contract checks. |
 | `homelab-operator init` | Install templates into another repository. |
