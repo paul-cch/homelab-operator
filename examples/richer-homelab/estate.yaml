@@ -1,0 +1,38 @@
+name: richer-synthetic-homelab
+surfaces:
+  - id: source
+    kind: repo
+    authority: public-main-branch
+    owner: source-maintainers
+    description: Synthetic source contract and examples
+    services:
+      - id: pr-contract
+        owner: source-maintainers
+        purpose: Validate public pull request proof boundaries
+        proof_required: repo_only
+        handoff: No host or runtime proof implied
+  - id: coordination
+    kind: github
+    authority: public-issue-queue
+    owner: maintainer-team
+    description: Synthetic issue and pull request coordination
+    services:
+      - id: ci-contract
+        owner: maintainer-team
+        purpose: Run synthetic contract checks in CI
+        proof_required: github_coordination
+  - id: runtime-export
+    kind: runtime_export
+    authority: synthetic-runtime-artifact
+    owner: runtime-reviewers
+    description: Example runtime export boundary without live probing
+flows:
+  - from: source
+    to: coordination
+    proof_required: github_coordination
+    intent: Source changes are reviewed through public pull requests
+  - from: coordination
+    to: runtime-export
+    proof_required: handoff
+    intent: Runtime proof requires a separate handoff receipt
+    handoff: Do not infer deployment from source checks

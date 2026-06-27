@@ -58,16 +58,28 @@ homelab-operator check-claim --json-file surface-claim.json --github-annotations
 
 ## `check-estate`
 
-Validate the simple YAML subset used by Homelab Operator example estates.
+Validate the supported YAML subset used by Homelab Operator example estates.
 
 ```bash
 homelab-operator check-estate --file examples/minimal-homelab/estate.yaml
 homelab-operator check-estate --file examples/minimal-homelab/estate.yaml --json
 homelab-operator check-estate --file examples/minimal-homelab/estate.yaml --sarif
 homelab-operator check-estate --file examples/minimal-homelab/estate.yaml --github-annotations
+homelab-operator check-estate --file examples/richer-homelab/estate.yaml
 ```
 
 JSON includes estate `surfaces`.
+
+The estate subset supports:
+
+- top-level `name`, `surfaces`, and `flows`
+- surface `id`, `kind`, `authority`, plus optional `owner`, `description`, `handoff`, and nested `services`
+- service `id`, `owner`, `proof_required`, plus optional `purpose` and `handoff`
+- flow `from`, `to`, `proof_required`, plus optional `intent` and `handoff`
+
+Unsupported fields fail with field-level errors. Example estates must remain
+synthetic and must not include real hostnames, IP addresses, domains, logs, or
+live config.
 
 ## `check-privacy`
 

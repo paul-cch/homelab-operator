@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Expand synthetic estate parsing with surface metadata and nested services.
 - Add SARIF output for contract and privacy validation findings.
 - Add GitHub Actions annotation output for contract and privacy failures.
 - Add JSON output for validation commands and `doctor`.
