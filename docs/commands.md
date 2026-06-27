@@ -2,7 +2,8 @@
 
 Most validation commands accept `--json` for machine-readable output. JSON mode
 prints one object to stdout with `ok`, `errors`, and `warnings`; command-specific
-fields are included when the checker exposes them.
+fields are included when the checker exposes them. Use `--sarif` to print SARIF
+2.1.0 JSON for CI systems that consume structured findings.
 
 Validation commands also accept `--github-annotations` for CI. When a command
 fails, the flag emits GitHub Actions `::error ...::...` lines with a file, line,
@@ -15,10 +16,13 @@ Validate a Markdown pull request body.
 ```bash
 homelab-operator check-pr --body-file PR.md
 homelab-operator check-pr --body-file PR.md --json
+homelab-operator check-pr --body-file PR.md --sarif
 homelab-operator check-pr --body-file PR.md --github-annotations
 ```
 
 JSON includes `owned_paths`.
+SARIF includes stable rule ids, severity, file/line locations when available,
+messages, and remediation text.
 
 ## `receipt-template`
 
@@ -35,6 +39,7 @@ Validate a Markdown lane receipt.
 ```bash
 homelab-operator check-receipt --file receipt.md
 homelab-operator check-receipt --file receipt.md --json
+homelab-operator check-receipt --file receipt.md --sarif
 homelab-operator check-receipt --file receipt.md --github-annotations
 ```
 
@@ -47,6 +52,7 @@ Validate a JSON surface claim.
 ```bash
 homelab-operator check-claim --json-file surface-claim.json
 homelab-operator check-claim --json-file surface-claim.json --json
+homelab-operator check-claim --json-file surface-claim.json --sarif
 homelab-operator check-claim --json-file surface-claim.json --github-annotations
 ```
 
@@ -57,6 +63,7 @@ Validate the simple YAML subset used by Homelab Operator example estates.
 ```bash
 homelab-operator check-estate --file examples/minimal-homelab/estate.yaml
 homelab-operator check-estate --file examples/minimal-homelab/estate.yaml --json
+homelab-operator check-estate --file examples/minimal-homelab/estate.yaml --sarif
 homelab-operator check-estate --file examples/minimal-homelab/estate.yaml --github-annotations
 ```
 
@@ -70,6 +77,7 @@ credential assignments, and private key blocks.
 ```bash
 homelab-operator check-privacy --root .
 homelab-operator check-privacy --root . --json
+homelab-operator check-privacy --root . --sarif
 homelab-operator check-privacy --root . --github-annotations
 homelab-operator check-privacy --root . --privacy-config privacy-rules.toml
 ```
@@ -98,6 +106,7 @@ The config file itself is scanned with built-in rules only, so literal custom
 patterns do not fail just because they appear in their own rule definition.
 
 JSON includes `files_scanned`, `privacy_config`, and `custom_privacy_rules`.
+SARIF privacy results use the same rule ids and non-leaking messages.
 
 ## `doctor`
 
@@ -106,6 +115,7 @@ Run the built-in project contract checks.
 ```bash
 homelab-operator doctor --root .
 homelab-operator doctor --root . --json
+homelab-operator doctor --root . --sarif
 homelab-operator doctor --root . --github-annotations
 homelab-operator doctor --root . --privacy-config privacy-rules.toml
 ```

@@ -53,6 +53,16 @@ source-only PR gate can emit GitHub Actions annotations directly:
   run: homelab-operator check-privacy --root . --github-annotations
 ```
 
+For systems that consume SARIF, emit a deterministic source-only result file
+from the same synthetic checks:
+
+```yaml
+- name: Write PR contract SARIF
+  run: homelab-operator check-pr --body-file "$RUNNER_TEMP/pr-body.md" --sarif > homelab-operator-pr.sarif
+- name: Write privacy SARIF
+  run: homelab-operator check-privacy --root . --sarif > homelab-operator-privacy.sarif
+```
+
 For branch protection, require the `Validate PR body and privacy` job alongside
 the repository's normal CI job. Do not replace test, build, or lint gates with
 this Action.

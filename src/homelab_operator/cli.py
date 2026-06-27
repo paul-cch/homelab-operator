@@ -66,6 +66,16 @@ class GithubAnnotation:
     message: str
 
 
+@dataclass(frozen=True)
+class SarifFinding:
+    rule_id: str
+    level: str
+    message: str
+    file: str | None
+    line: int
+    help: str
+
+
 def annotation_escape(value: str, *, property_value: bool = False) -> str:
     escaped = value.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     if property_value:
@@ -150,6 +160,82 @@ def result_annotations(result: Any, file: str | None, text: str, prefix: str) ->
     return annotations
 
 
+def result_sarif_findings(result: Any, file: str | None, text: str, prefix: str) -> list[SarifFinding]:
+    findings: list[SarifFinding] = []
+    for warning in result.warnings:
+        findings.append(
+            SarifFinding(
+                rule_id=annotation_rule_id(warning, prefix),
+                level="warning",
+                message=warning,
+                file=file,
+                line=line_for_error(text, warning),
+                help="Update the checked file so it satisfies the Homelab Operator contract.",
+            )
+        )
+    for error in result.errors:
+        findings.append(
+            SarifFinding(
+                rule_id=annotation_rule_id(error, prefix),
+                level="error",
+                message=error,
+                file=file,
+                line=line_for_error(text, error),
+                help="Update the checked file so it satisfies the Homelab Operator contract.",
+            )
+        )
+    return findings
+
+
+def sarif_payload(findings: list[SarifFinding]) -> dict[str, Any]:
+    rules: list[dict[str, Any]] = []
+    seen_rules: set[str] = set()
+    results: list[dict[str, Any]] = []
+    for finding in findings:
+        if finding.rule_id not in seen_rules:
+            seen_rules.add(finding.rule_id)
+            rules.append(
+                {
+                    "id": finding.rule_id,
+                    "shortDescription": {"text": finding.rule_id},
+                    "help": {"text": finding.help},
+                }
+            )
+
+        result: dict[str, Any] = {
+            "ruleId": finding.rule_id,
+            "level": finding.level,
+            "message": {"text": finding.message},
+        }
+        if finding.file:
+            physical_location: dict[str, Any] = {"artifactLocation": {"uri": finding.file}}
+            if finding.line > 0:
+                physical_location["region"] = {"startLine": finding.line}
+            result["locations"] = [{"physicalLocation": physical_location}]
+        results.append(result)
+
+    return {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [
+            {
+                "tool": {
+                    "driver": {
+                        "name": "homelab-operator",
+                        "informationUri": "https://github.com/paul-cch/homelab-operator",
+                        "rules": rules,
+                    }
+                },
+                "results": results,
+            }
+        ],
+    }
+
+
+def print_sarif(findings: list[SarifFinding]) -> None:
+    print_json(sarif_payload(findings))
+
+
 def emit_result(
     args: argparse.Namespace,
     result: Any,
@@ -162,6 +248,10 @@ def emit_result(
 ) -> int:
     if getattr(args, "github_annotations", False) and not result.ok:
         emit_github_annotations(result_annotations(result, annotation_file, annotation_text, annotation_prefix))
+
+    if getattr(args, "sarif", False):
+        print_sarif(result_sarif_findings(result, annotation_file, annotation_text, annotation_prefix))
+        return 0 if result.ok else 1
 
     if args.json:
         print_json(result_payload(result, fields))
@@ -337,6 +427,28 @@ def privacy_github_annotations(payload: dict[str, Any]) -> list[GithubAnnotation
     return annotations
 
 
+def privacy_sarif_findings(payload: dict[str, Any]) -> list[SarifFinding]:
+    findings: list[SarifFinding] = []
+    for item in payload.get("annotations", []):
+        if not isinstance(item, dict):
+            continue
+        try:
+            line = int(item.get("line", 1))
+        except (TypeError, ValueError):
+            line = 1
+        findings.append(
+            SarifFinding(
+                rule_id=str(item.get("rule_id", "privacy.failure")),
+                level="error",
+                message=str(item.get("message", "Privacy scan failed")),
+                file=str(item["file"]) if item.get("file") else None,
+                line=line,
+                help="Remove private operational material or replace it with synthetic public fixture content.",
+            )
+        )
+    return findings
+
+
 def doctor_github_annotations(payload: dict[str, Any]) -> list[GithubAnnotation]:
     annotations: list[GithubAnnotation] = []
     for check in payload.get("checks", []):
@@ -363,10 +475,56 @@ def doctor_github_annotations(payload: dict[str, Any]) -> list[GithubAnnotation]
     return annotations
 
 
+def doctor_sarif_findings(payload: dict[str, Any]) -> list[SarifFinding]:
+    findings: list[SarifFinding] = []
+    for check in payload.get("checks", []):
+        if not isinstance(check, dict):
+            continue
+        if check.get("name") == "privacy":
+            findings.extend(privacy_sarif_findings(check))
+            continue
+        path = str(check.get("path") or "")
+        text = ""
+        if path and Path(path).exists():
+            try:
+                text = Path(path).read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                text = ""
+        prefix = str(check.get("name") or "contract").lower()
+        for warning in check.get("warnings", []):
+            message = str(warning)
+            findings.append(
+                SarifFinding(
+                    rule_id=annotation_rule_id(message, prefix),
+                    level="warning",
+                    message=message,
+                    file=path or None,
+                    line=line_for_error(text, message),
+                    help="Update the checked file so it satisfies the Homelab Operator contract.",
+                )
+            )
+        for error in check.get("errors", []):
+            message = str(error)
+            findings.append(
+                SarifFinding(
+                    rule_id=annotation_rule_id(message, prefix),
+                    level="error",
+                    message=message,
+                    file=path or None,
+                    line=line_for_error(text, message),
+                    help="Update the checked file so it satisfies the Homelab Operator contract.",
+                )
+            )
+    return findings
+
+
 def cmd_check_privacy(args: argparse.Namespace) -> int:
     payload = privacy_payload(Path(args.root), args.privacy_config)
     if args.github_annotations and not payload["ok"]:
         emit_github_annotations(privacy_github_annotations(payload))
+    if args.sarif:
+        print_sarif(privacy_sarif_findings(payload))
+        return 0 if payload["ok"] else 1
     if args.json:
         print_json(payload)
         return 0 if payload["ok"] else 1
@@ -427,6 +585,9 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     payload = doctor_payload(root, args.privacy_config)
     if args.github_annotations and not payload["ok"]:
         emit_github_annotations(doctor_github_annotations(payload))
+    if args.sarif:
+        print_sarif(doctor_sarif_findings(payload))
+        return 0 if payload["ok"] else 1
     if args.json:
         print_json(payload)
         return 0 if payload["ok"] else 1
@@ -486,6 +647,7 @@ def build_parser() -> argparse.ArgumentParser:
     check_pr.add_argument("--body-file", help="Markdown PR body. Defaults to stdin.")
     check_pr.add_argument("--write-owned-paths", help="Write extracted owned paths to a file.")
     check_pr.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_pr.add_argument("--sarif", action="store_true", help="Print SARIF JSON.")
     check_pr.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     check_pr.set_defaults(func=cmd_check_pr)
 
@@ -496,18 +658,21 @@ def build_parser() -> argparse.ArgumentParser:
     check_receipt = subparsers.add_parser("check-receipt", help="Validate a lane receipt")
     check_receipt.add_argument("--file", required=True, help="Markdown receipt file.")
     check_receipt.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_receipt.add_argument("--sarif", action="store_true", help="Print SARIF JSON.")
     check_receipt.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     check_receipt.set_defaults(func=cmd_check_receipt)
 
     check_claim = subparsers.add_parser("check-claim", help="Validate a JSON surface claim")
     check_claim.add_argument("--json-file", required=True, help="JSON surface claim file.")
     check_claim.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_claim.add_argument("--sarif", action="store_true", help="Print SARIF JSON.")
     check_claim.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     check_claim.set_defaults(func=cmd_check_claim)
 
     check_estate = subparsers.add_parser("check-estate", help="Validate a simple estate YAML file")
     check_estate.add_argument("--file", required=True, help="Estate YAML file.")
     check_estate.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_estate.add_argument("--sarif", action="store_true", help="Print SARIF JSON.")
     check_estate.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     check_estate.set_defaults(func=cmd_check_estate)
 
@@ -518,6 +683,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Additional TOML privacy deny rules. Defaults to {DEFAULT_PRIVACY_CONFIG} under --root when present.",
     )
     check_privacy.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    check_privacy.add_argument("--sarif", action="store_true", help="Print SARIF JSON.")
     check_privacy.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     check_privacy.set_defaults(func=cmd_check_privacy)
 
@@ -528,6 +694,7 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Additional TOML privacy deny rules. Defaults to {DEFAULT_PRIVACY_CONFIG} under --root when present.",
     )
     doctor.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    doctor.add_argument("--sarif", action="store_true", help="Print SARIF JSON.")
     doctor.add_argument("--github-annotations", action="store_true", help="Emit GitHub Actions error annotations.")
     doctor.set_defaults(func=cmd_doctor)
 
