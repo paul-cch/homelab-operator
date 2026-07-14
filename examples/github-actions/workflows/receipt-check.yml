@@ -1,0 +1,30 @@
+# Proof kind: repo_only
+# Claim proven: the checked-in synthetic lane receipt satisfies the receipt contract.
+# Claim not proven: no host checkout, runtime export, live config, or external service was checked.
+name: Homelab Operator receipt check
+
+on:
+  pull_request:
+    paths:
+      - "examples/minimal-homelab/receipts/**"
+
+permissions:
+  contents: read
+
+env:
+  HOMELAB_OPERATOR_REF: v1.0.0
+
+jobs:
+  receipt-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Homelab Operator
+        run: python -m pip install "git+https://github.com/paul-cch/homelab-operator.git@${HOMELAB_OPERATOR_REF}"
+      - name: Validate the source-change receipt
+        run: homelab-operator check-receipt --file examples/minimal-homelab/receipts/source-change.md

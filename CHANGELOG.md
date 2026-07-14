@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add copyable GitHub Actions examples for receipt, privacy, and scheduled
+  `repo_only` source checks.
 - Expand synthetic estate parsing with surface metadata and nested services.
 - Add SARIF output for contract and privacy validation findings.
 - Add GitHub Actions annotation output for contract and privacy failures.
