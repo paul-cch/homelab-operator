@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Refresh direct GitHub Actions dependencies to current Node 24 releases and
+  pin the updated actions in workflows, templates, examples, and generated
+  scaffolds to immutable commits.
 - Add copyable GitHub Actions examples for receipt, privacy, and scheduled
   `repo_only` source checks.
 - Expand synthetic estate parsing with surface metadata and nested services.
