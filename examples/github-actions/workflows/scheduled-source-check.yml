@@ -1,0 +1,32 @@
+# Proof kind: repo_only
+# Claim proven: the checked-in source claim and repository text passed their source checks.
+# Claim not proven: no host checkout, runtime export, live config, or external service was checked.
+name: Homelab Operator scheduled source check
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  HOMELAB_OPERATOR_REF: v1.0.0
+
+jobs:
+  scheduled-source-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Homelab Operator
+        run: python -m pip install "git+https://github.com/paul-cch/homelab-operator.git@${HOMELAB_OPERATOR_REF}"
+      - name: Validate the source claim
+        run: homelab-operator check-claim --json-file examples/github-actions/repo-source-claim.json
+      - name: Scan checked-out source
+        run: homelab-operator check-privacy --root .

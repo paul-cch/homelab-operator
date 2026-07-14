@@ -1,0 +1,7 @@
+{
+  "surface": "repo",
+  "proof_kind": "repo_only",
+  "claim_proven": "synthetic source files passed the listed repository checks",
+  "claim_not_proven": "no host checkout, runtime export, live config, or external service was checked",
+  "next_safe_action": "review the source-only results"
+}

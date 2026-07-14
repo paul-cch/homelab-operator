@@ -20,6 +20,24 @@ repository as:
 The template installs Homelab Operator from the public `v1.0.0` tag. Update
 `HOMELAB_OPERATOR_REF` deliberately when adopting a newer release.
 
+## Copyable proof lanes
+
+The [`examples/github-actions`](../../examples/github-actions/README.md)
+directory has ready-to-copy workflows for:
+
+- validating a checked-in lane receipt when receipt files change
+- scanning repository text on pull requests and pushes to `main`
+- running a scheduled or manual source-claim and privacy check
+
+Each example uses only commands shipped in `v1.0.0`, requests read-only GitHub
+permissions, and states its `repo_only` proof boundary in the workflow file.
+Change the synthetic example path after copying a workflow into another
+repository.
+
+The scheduled example validates a checked-in source claim. It does not inspect
+a host or runtime. A generic JSON Schema workflow remains deferred until the
+schema-validation CLI command exists.
+
 ## Required PR Body
 
 The Action expects the pull request body to keep these sections:
