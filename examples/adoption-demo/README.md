@@ -1,69 +1,69 @@
 # Adoption Demo
 
-This is a synthetic walkthrough for a tiny agent-maintained operations repo. It
-does not describe a real host, network, runtime, or service.
+This is a short, fully synthetic demo that shows a new adopter how to run
+a source-only check from a clean checkout. No private infrastructure, live
+services, runtime state, or real hostnames are used.
 
-The demo shows the mistake Homelab Operator is built to catch: an agent validates
-source files and then implies deployment proof.
+## What This Demo Proves
 
-## Flow
+A `repo_only` check proves that local source, documentation, schema, and
+contract checks are coherent. It does not prove host checkout, runtime
+export, live config, external service status, or end-to-end operation.
 
-1. A bad PR body validates local source but omits the claim boundary.
-2. A good PR body uses `repo_only` and states that host, runtime, live config,
-   and external-service proof were not checked.
-3. A receipt records the next safe handoff.
-4. The project doctor checks the public examples.
+## Quick Start
 
-## Commands
-
-Run from the repository root:
+Install the development package from the repository root:
 
 ```bash
-homelab-operator check-pr --body-file tests/fixtures/bad_pr_body_missing_boundary.md || true
-homelab-operator check-pr --body-file tests/fixtures/good_pr_body.md
-homelab-operator receipt-template --state MERGE_READY
-homelab-operator check-receipt --file examples/minimal-homelab/receipts/source-change.md
-homelab-operator check-claim --json-file examples/assistant-runtime/surface-claim.json
+python -m pip install -e ".[dev]"
+```
+
+Run the source-only demo flow:
+
+```bash
+homelab-operator check-pr --body-file examples/demo/corrected-pr-body.md
+homelab-operator check-receipt --file examples/demo/merge-ready-receipt.md
 homelab-operator check-estate --file examples/minimal-homelab/estate.yaml
 homelab-operator doctor --root .
+homelab-operator check-privacy --root .
 ```
 
-## Expected signal
-
-The bad PR should fail because validation without a claim boundary is not
-reviewable. The good path should end with:
+## Expected Output
 
 ```text
+PR_CONTRACT_OK
+RECEIPT_CONTRACT_OK
+ESTATE_CONTRACT_OK
+PR_CONTRACT_OK
+RECEIPT_CONTRACT_OK
+SURFACE_CLAIM_OK
+ESTATE_CONTRACT_OK
+PRIVACY_SCAN_OK
 HOMELAB_OPERATOR_DOCTOR_OK
+PRIVACY_SCAN_OK
 ```
 
-## Demo repo shape
+All output comes from synthetic fixtures. Nothing above is runtime or
+live-service proof.
 
-A fuller demo repository can copy this structure:
+## Understanding the Output
 
-```text
-homelab-operator-demo-app/
-  README.md
-  AGENTS.md
-  .github/
-    pull_request_template.md
-    workflows/
-      homelab-operator-contract.yml
-  estate.yaml
-  app/
-    service.py
-    config.example.yaml
-  examples/
-    pr-bodies/
-      01-bad-missing-boundary.md
-      02-bad-overclaims-runtime.md
-      03-good-repo-only.md
-      04-good-handoff.md
-    receipts/
-      merge-ready.md
-      host-runtime-handoff.md
-      blocked-with-evidence.md
-      clean-no-op.md
-```
+| Output line | What it proves | What it does not prove |
+| --- | --- | --- |
+| `PR_CONTRACT_OK` | PR body states a valid claim boundary | Host checkout, runtime, live config |
+| `RECEIPT_CONTRACT_OK` | Lane receipt is structurally valid | Any surface beyond source |
+| `ESTATE_CONTRACT_OK` | Estate YAML schema is valid | Real infrastructure matches |
+| `PRIVACY_SCAN_OK` | No private material found in text files | Runtime secrets or env |
+| `HOMELAB_OPERATOR_DOCTOR_OK` | All repo contract fixtures pass | Anything beyond the repo |
 
-Keep every host, service, config value, and receipt synthetic.
+## Claim Boundary
+
+Proof kind: repo_only
+
+Claim proven: the commands above pass against synthetic fixtures in a local
+checkout.
+
+Claim not proven: no host checkout, runtime export, live config, deployment,
+package publish, or external service was checked.
+
+Host/runtime/live-config handoff needed: no

@@ -93,6 +93,20 @@ PRIVACY_SCAN_OK
 HOMELAB_OPERATOR_DOCTOR_OK
 ```
 
+## First-Run Path
+
+New to Homelab Operator? The adoption demo gives a shorter, step-by-step
+path that explains each command's output:
+
+- [`examples/adoption-demo/README.md`](../examples/adoption-demo/README.md)
+
+## Reviewing a Source-Only PR
+
+If you are a maintainer or reviewer evaluating a `repo_only` PR, use the
+source-only reviewer checklist:
+
+- [`docs/workflows/source-only-reviewer-checklist.md`](workflows/source-only-reviewer-checklist.md)
+
 ## Claim Boundary
 
 The corrected example uses `repo_only` proof. It proves only that local source,
