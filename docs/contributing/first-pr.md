@@ -88,6 +88,23 @@ git diff --check
 
 If you cannot run a command, say which command was skipped and why.
 
+## 5a. Run the Adoption Demo (Optional but Recommended)
+
+The adoption demo walks through the complete source-only flow using synthetic
+fixtures. Run it once before your first PR to confirm your install is working:
+
+```bash
+homelab-operator check-pr --body-file examples/demo/corrected-pr-body.md
+homelab-operator check-receipt --file examples/demo/merge-ready-receipt.md
+homelab-operator check-estate --file examples/minimal-homelab/estate.yaml
+homelab-operator doctor --root .
+homelab-operator check-privacy --root .
+```
+
+All five commands should pass. See
+[`examples/adoption-demo/README.md`](../../examples/adoption-demo/README.md)
+for the expected output and a table explaining what each result proves.
+
 ## 6. Open the PR With a Claim Boundary
 
 Use the pull request template. The important sections for a first PR are:
